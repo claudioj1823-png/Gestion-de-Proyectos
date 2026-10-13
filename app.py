@@ -35,10 +35,11 @@ def cargar_datos():
         if os.path.exists(ruta):
             try:
                 if clave == 'contratistas':
+                    # Leer estrictamente la pestaña maestra 'Actividades con materiales' como en tu IDP
                     try:
                         df = pd.read_excel(ruta, sheet_name="Actividades con materiales")
                     except Exception:
-                        df = pd.read_excel(ruta)
+                        df = pd.read_excel(ruta, sheet_name=-1)
                 else:
                     df = pd.read_excel(ruta)
                 df.columns = [str(c).strip() for c in df.columns]
@@ -106,29 +107,30 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Universal: Agrupar MO por Actividad y buscar directamente en el Maestro de Materiales por Actividad
+        # 3. Lógica IDP Exacta: Agrupar MO por Actividad + Cruce con Maestro de Materiales y Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
-            # Normalizar columnas de texto clave
+            # Normalizar Actividad en la fuente de materiales
             fuente_mat["Actividad"] = fuente_mat["Actividad"].fillna("").astype(str).str.strip()
             
+            # Agrupar la mano de obra del proyecto por Actividad sumando sus cantidades (idéntico al IDP)
             col_act_mo = 'Actividad' if 'Actividad' in df_mo_proy.columns else df_mo_proy.columns[0]
             col_cant_mo = 'Cantidad' if 'Cantidad' in df_mo_proy.columns else df_mo_proy.columns[4]
             
             df_mo_proy[col_cant_mo] = pd.to_numeric(df_mo_proy[col_cant_mo], errors='coerce').fillna(0)
             df_idp_agrupado = df_mo_proy.groupby(col_act_mo)[col_cant_mo].sum().to_dict()
             
-            # Filtrar el maestro de contratistas exclusivamente por coincidencia de actividad (sin importar la contrata)
-            df_c_proy = fuente_mat[fuente_mat["Actividad"].isin(df_idp_agrupado.keys())].copy()
+            # Filtrar el maestro usando las actividades ejecutadas en este proyecto
+            df_c_proy = fuente_mat[fuente_mat["Actividad"].isin([str(k).strip() for k in df_idp_agrupado.keys()])].copy()
             
             if not df_c_proy.empty:
                 df_c_proy["Cant_IDP"] = df_c_proy["Actividad"].map(df_idp_agrupado)
                 
-                # Detectar columna de cantidad de material en el maestro (excluyendo 'Cantidad')
+                # Identificar la columna de cantidad de material en el maestro (excluyendo 'Cantidad' principal)
                 col_cant_mat_list = [c for c in df_c_proy.columns if "cant" in c.lower() and c.lower() != "cantidad" and c.lower() != "cant_idp"]
                 
                 if col_cant_mat_list:
@@ -145,7 +147,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                     cols_und = [c for c in df_c_proy.columns if "unid" in c.lower()]
                     und_col = cols_und[0] if cols_und else None
                     
-                    # Preparar precios SAP
                     col_sap_prec = df_sap.columns[0]
                     col_precio_final = next((c for c in df_sap.columns if "precio" in c.lower() or "costo" in c.lower()), df_sap.columns[-1])
                     
@@ -156,7 +157,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                     df_merge = pd.merge(df_c_proy, df_sap_copy, on='Clean_SAP', how='inner')
                     df_merge['Precio_Unitario_SAP'] = pd.to_numeric(df_merge[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0)
                     
-                    # Agrupar materiales consolidados del proyecto
+                    # Agrupar materiales consolidados finales del proyecto
                     cols_agrupar = ["Actividad", col_sap_mat, desc_mat_col]
                     if und_col:
                         cols_agrupar.append(und_col)
@@ -192,11 +193,12 @@ if menu == "Panel Ejecutivo por Proyecto":
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales (Universal)")
+            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales (Lógica IDP)")
             if not df_materiales_calculados.empty:
-                st.dataframe(df_materiales_calculados.head(15), use_container_width=True)
+                cols_show = [c for c in ['Actividad', df_materiales_calculados.columns[1], df_materiales_calculados.columns[2], 'Cantidad_Total', 'Costo_Material'] if c in df_materiales_calculados.columns]
+                st.dataframe(df_materiales_calculados[cols_show].head(15), use_container_width=True)
             else:
-                st.info("No se encontraron materiales vinculados para las actividades de este proyecto.")
+                st.info("No se encontraron materiales vinculados para este proyecto.")
                 
         st.markdown("#### 📋 Detalle de Mano de Obra del Proyecto")
         if not df_mo_proy.empty:
