@@ -219,7 +219,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Filtrar actividades sin código SAP válido (remueve la fila fantasma de ceros)
             fuente_mat = fuente_mat[~fuente_mat['Clean_SAP'].isin(['', 'NAN', 'NONE', '0'])]
             
             fuente_mat_clean = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].mean()
@@ -229,7 +228,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # Columnas oficiales de la Hoja 3 de Precios SAP
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
                 col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
                 col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
@@ -252,7 +250,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo_Material'].sum()
                 df_materiales_calculados = df_resumen_mat.copy()
                 
-                # Versión formateada con formato contable profesional en RD$
                 df_display = df_resumen_mat.copy()
                 df_display['Cantidad Total'] = df_display['Cantidad_Total_Material'].apply(lambda x: f"{x:,.2f}".rstrip('0').rstrip('.') if x % 1 != 0 else f"{int(x):,}")
                 df_display['Precio Unitario SAP'] = df_display['Precio_Oficial'].apply(lambda x: f"RD$ {x:,.2f}")
@@ -305,8 +302,8 @@ if menu == "Panel Ejecutivo por Proyecto":
         # Tarjetas Métricas Ejecutivas
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
-        c2.metric("Materiales SAP (RD$)", f"RD$ {costo_materiales_total:,.2f}")
-        c3.metric("Costo Estimado Total (RD$)", f"RD$ {total_ejecutado:,.2f}")
+        c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
+        c3.metric("Monto Invertido en el Proyecto (RD$)", f"RD$ {total_ejecutado:,.2f}")
         c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
@@ -316,14 +313,14 @@ if menu == "Panel Ejecutivo por Proyecto":
         col_g1, col_g2 = st.columns(2)
         with col_g1:
             df_grafico = pd.DataFrame({
-                'Concepto': ['Mano de Obra', 'Materiales SAP', 'Costo Estimado', 'Presupuesto Plan.'],
+                'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
                 'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
             })
             fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto")
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Materiales Instalados (Calculados - Hoja 3)")
+            st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_mostrador.empty:
                 st.dataframe(df_materiales_mostrador, hide_index=True, use_container_width=True)
             else:
