@@ -43,6 +43,7 @@ def normalizar_texto(txt):
         clean = clean[:-1]
     return clean
 
+# Carga de datos directa sin caché agresiva para evitar bloqueos
 def cargar_datos():
     archivos = {
         'codigos': 'Codigos de proyectos.xlsx',
@@ -85,7 +86,7 @@ df_contratistas = datos.get('contratistas')
 df_sap = datos.get('sap')
 df_metas = datos.get('metas')
 
-# Mapeo Actividad -> Familia
+# Mapeo Actividad -> Familia (robusto a mayúsculas)
 dict_familia = {}
 if df_familia is not None and not df_familia.empty:
     col_act_f = next((c for c in df_familia.columns if 'actividad' in c.lower()), df_familia.columns[0])
@@ -178,7 +179,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales (Forzando lectura de Columna E / Precio Final)
+        # 3. Procesamiento y Materiales (Lectura estricta de Precios SAP por posición de columna)
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -217,7 +218,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # Leer Precio SAP tomando directamente la columna de precio final o la columna E (índice 4)
+                # Forzar lectura exacta de las columnas del Excel de Precios SAP (A=SAP, B=Desc, E=Precio Final)
                 col_sap_prec = df_sap.columns[0]
                 col_desc_sap = df_sap.columns[1]
                 col_precio_final = df_sap.columns[4] if len(df_sap.columns) > 4 else df_sap.columns[-1]
@@ -255,7 +256,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
-        # 4. Cruce de Metas y Ejecutado
+        # 4. Cruce robusto de Metas (Planificado) vs Ejecutado (Agrupado por Familia)
         df_avance_acciones = pd.DataFrame()
         if df_metas is not None and not df_metas.empty:
             col_proy_m = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
@@ -333,7 +334,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
                 
-        # Detalle de Mano de Obra en Expansor Limpio (Opción A)
+        # Opción A: Detalle de Mano de Obra en Expansor Limpio
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
                 st.dataframe(
