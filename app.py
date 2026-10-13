@@ -106,7 +106,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Blindada: Agrupar MO -> Deduplicar Maestro Contratistas -> Cruce Universal -> Agrupar SAP
+        # 3. Lógica IDP Blindada: Extracción Oficial de Descripción y Precios desde SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -114,7 +114,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
-            # A. Agrupar mano de obra del proyecto por Actividad
+            # A. Agrupar mano de obra por Actividad
             col_act_mo = next((c for c in df_mo_proy.columns if 'actividad' in c.lower()), df_mo_proy.columns[0])
             col_cant_mo = next((c for c in df_mo_proy.columns if c.lower() == 'cantidad' or 'cant' in c.lower()), df_mo_proy.columns[4])
             
@@ -126,10 +126,9 @@ if menu == "Panel Ejecutivo por Proyecto":
             
             dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Total Ejecutada']))
             
-            # B. Identificar columnas y DEDUPLICAR el maestro de contratistas para evitar duplicidad por contrata
+            # B. Deduplicar maestro de contratistas
             col_act_mat = next((c for c in fuente_mat.columns if 'actividad' in c.lower()), fuente_mat.columns[0])
             col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower() or 'codigo sap' in c.lower()), fuente_mat.columns[4])
-            desc_mat_col = next((c for c in fuente_mat.columns if 'descripci' in c.lower() or ('mat' in c.lower() and c != col_sap_mat)), fuente_mat.columns[5])
             und_col = next((c for c in fuente_mat.columns if 'unid' in c.lower()), None)
             
             cols_candidatas_cant = [c for c in fuente_mat.columns if ('cant' in c.lower() or 'und' in c.lower()) and c != col_act_mat and c != col_sap_mat]
@@ -139,41 +138,45 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Eliminar duplicados en el maestro para que cada Actividad tenga un único coeficiente por Material
             fuente_mat_clean = fuente_mat.drop_duplicates(subset=['Actividad_Clean', 'Clean_SAP']).copy()
-            
             df_filtrado = fuente_mat_clean[fuente_mat_clean['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
             
             if not df_filtrado.empty:
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # C. Normalizar precios SAP
+                # C. Extraer Descripción y Precios OFICIALES desde el maestro SAP
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
-                col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[-1])
+                col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1]) # Columna B de SAP
+                col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2]) # Columna C de SAP
                 
                 df_sap_copy = df_sap.copy()
                 df_sap_copy['Clean_SAP'] = df_sap_copy[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+                df_sap_copy['Descripcion_Oficial'] = df_sap_copy[col_desc_sap].fillna("").astype(str)
+                df_sap_copy['Precio_Oficial'] = pd.to_numeric(df_sap_copy[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
                 
-                df_merge_sap = pd.merge(df_filtrado, df_sap_copy, on='Clean_SAP', how='left')
-                df_merge_sap['Precio_Unitario_SAP'] = pd.to_numeric(df_merge_sap[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
+                # Nos quedamos solo con las columnas limpias del maestro SAP para hacer el cruce perfecto
+                df_sap_limpio = df_sap_copy[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
                 
-                # D. Doble Agrupación por Código SAP
-                cols_agrupar = ['Clean_SAP', desc_mat_col]
+                df_merge_sap = pd.merge(df_filtrado, df_sap_limpio, on='Clean_SAP', how='left')
+                
+                # D. Doble Agrupación por Código SAP usando la descripción oficial y precio exacto
+                cols_agrupar = ['Clean_SAP', 'Descripcion_Oficial']
                 if und_col and und_col in df_merge_sap.columns:
                     cols_agrupar.append(und_col)
                     
                 df_resumen_mat = df_merge_sap.groupby(cols_agrupar, as_index=False).agg({
                     "Cantidad_Total_Material": "sum",
-                    "Precio_Unitario_SAP": "first"
+                    "Precio_Oficial": "first"
                 })
                 
-                df_resumen_mat['Costo_Material'] = df_resumen_mat['Cantidad_Total_Material'] * df_resumen_mat['Precio_Unitario_SAP']
+                df_resumen_mat['Costo_Material'] = df_resumen_mat['Cantidad_Total_Material'] * df_resumen_mat['Precio_Oficial']
                 
                 renombres = {
                     'Clean_SAP': "Código SAP",
-                    desc_mat_col: "Descripción de Material",
+                    'Descripcion_Oficial': "Descripción de Material",
                     "Cantidad_Total_Material": "Cantidad Total",
+                    "Precio_Oficial": "Precio_Unitario_SAP",
                     "Costo_Material": "Costo Total"
                 }
                 if und_col and und_col in df_resumen_mat.columns:
