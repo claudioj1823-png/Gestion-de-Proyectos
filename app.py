@@ -36,12 +36,17 @@ def normalizar_texto(txt):
     import unicodedata
     nfkd_form = unicodedata.normalize('NFKD', txt)
     solo_ascii = "".join([c for c in nfkd_form if not unicodedata.combining(c)])
-    return solo_ascii.upper().strip()
+    clean = solo_ascii.upper().strip()
+    if clean.endswith('ES'):
+        clean = clean[:-2]
+    elif clean.endswith('S') and not clean in ['PUESTA A TIERRA', 'TENDIDO DE CONDUCTOR']:
+        clean = clean[:-1]
+    return clean
 
 def cargar_datos():
     archivos = {
         'codigos': 'Codigos de proyectos.xlsx',
-        'familia': 'Actividades con su familia.xlsx',
+        'familia': 'Actividades con sus familia.xlsx',
         'contratistas': 'Actividades contratistas.xlsx',
         'sap': 'Precios Sap.xlsx',
         'metas': 'Proyectos con sus metas.xlsx',
@@ -118,7 +123,7 @@ codigo_seleccionado = st.sidebar.selectbox("Código de Proyecto:", ["Todos"] + l
 menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Relación Mano de Obra y Materiales", "Mapas de Ubicación"])
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Refrescar / Recargar Datos"):
+if st.sidebar.button("🔄 Refrescar Datos en Vivo"):
     st.cache_data.clear()
     st.rerun()
 
@@ -173,7 +178,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Mapeo
+        # 3. Procesamiento y Materiales (Forzando lectura de Columna E / Precio Final)
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -187,7 +192,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             df_mo_proy['Actividad_Clean'] = df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
             df_mo_proy['Cantidad_Num'] = pd.to_numeric(df_mo_proy[col_cant_mo], errors='coerce').fillna(0)
             
-            # Asignar familia usando el diccionario
             df_mo_proy['Familia_Accion'] = df_mo_proy['Actividad_Clean'].map(dict_familia).fillna("OTRA")
             
             df_mo_agrupado = df_mo_proy.groupby(['Familia_Accion', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
@@ -213,9 +217,10 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
-                col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-                col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower()), df_sap.columns[-1])
+                # Leer Precio SAP tomando directamente la columna de precio final o la columna E (índice 4)
+                col_sap_prec = df_sap.columns[0]
+                col_desc_sap = df_sap.columns[1]
+                col_precio_final = df_sap.columns[4] if len(df_sap.columns) > 4 else df_sap.columns[-1]
                 
                 df_sap_copy = df_sap.copy()
                 df_sap_copy['Clean_SAP'] = df_sap_copy[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
@@ -250,7 +255,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
-        # 4. Cruce de Metas con normalización estricta
+        # 4. Cruce de Metas y Ejecutado
         df_avance_acciones = pd.DataFrame()
         if df_metas is not None and not df_metas.empty:
             col_proy_m = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
@@ -297,16 +302,6 @@ if menu == "Panel Ejecutivo por Proyecto":
         c5.metric("% Ejecución", f"{porcentaje_ejecutado:.1f}%")
 
         st.markdown("---")
-        
-        # 🔍 PANEL DE DIAGNÓSTICO VISUAL TEMPORAL
-        with st.expander("🛠️ [DIAGNÓSTICO] Ver qué datos está leyendo el sistema para este proyecto"):
-            st.write(f"**Proyecto seleccionado:** {cod_clean}")
-            st.write(f"**Registros de Mano de Obra encontrados en bruto:** {len(df_mo_proy)}")
-            if not df_mo_proy.empty:
-                st.dataframe(df_mo_proy[['Actividad_Clean', 'Familia_Accion', 'Cantidad_Num']].head(10))
-            else:
-                st.warning("⚠️ No hay registros de mano de obra para este proyecto con este código.")
-
         st.markdown("### 📊 Desglose Financiero y Operativo")
         
         col_g1, col_g2 = st.columns(2)
@@ -325,7 +320,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Tabla de Avance
+        # Tabla y Gráfico de Avance por Acción
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             st.dataframe(df_avance_acciones[['Acción', 'Planificado', 'Ejecutado', '% Avance']], use_container_width=True, hide_index=True)
@@ -338,10 +333,19 @@ if menu == "Panel Ejecutivo por Proyecto":
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
                 
-        # Detalle de Mano de Obra (Opción A: Expansor)
+        # Detalle de Mano de Obra en Expansor Limpio (Opción A)
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
-                st.dataframe(df_mo_agrupado, hide_index=True, use_container_width=True)
+                st.dataframe(
+                    df_mo_agrupado,
+                    column_config={
+                        "Familia / Acción": st.column_config.TextColumn("Familia / Acción", width="medium"),
+                        "Actividad": st.column_config.TextColumn("Actividad", width="medium"),
+                        "Cantidad Ejecutada": st.column_config.NumberColumn("Cantidad Ejecutada", width="small", format="%.2f")
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
             else:
                 st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
     else:
@@ -358,9 +362,9 @@ elif menu == "Relación Mano de Obra y Materiales":
         df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
         df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
         
-        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
-        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-        col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower()), df_sap.columns[-1])
+        col_sap_prec = df_sap.columns[0]
+        col_desc_sap = df_sap.columns[1]
+        col_precio_final = df_sap.columns[4] if len(df_sap.columns) > 4 else df_sap.columns[-1]
         
         df_sap_c = df_sap.copy()
         df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
