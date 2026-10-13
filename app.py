@@ -92,7 +92,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 if not match_p.empty:
                     nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
         
-        # Mostrar el nombre del proyecto de forma más compacta y elegante
         st.markdown(f"<h5 style='color: #343a40; margin-bottom: 20px;'>📌 Proyecto Seleccionado: <b>{nombre_proyecto_str}</b></h5>", unsafe_allow_html=True)
         
         # 1. Mano de Obra Ejecutada del Proyecto
@@ -248,11 +247,35 @@ if menu == "Panel Ejecutivo por Proyecto":
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 elif menu == "Relación Mano de Obra y Materiales":
-    st.subheader("🧩 Matriz Relacional: Actividades, Materiales y Precios SAP")
-    if df_contratistas is not None:
-        st.dataframe(df_contratistas, use_container_width=True)
+    st.subheader("🧩 Matriz Relacional Unificada: Actividades, Materiales y Precios SAP")
+    st.markdown("Esta vista presenta el maestro de actividades de contratistas deduplicado y enriquecido con las descripciones oficiales y precios unitarios vigentes de SAP.")
+    
+    if df_contratistas is not None and df_sap is not None:
+        # Limpieza y cruce para mostrar la matriz limpia oficial
+        df_c_mat = df_contratistas.copy()
+        col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
+        col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
+        
+        df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+        
+        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
+        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
+        col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower()), df_sap.columns[-1])
+        
+        df_sap_c = df_sap.copy()
+        df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+        df_sap_c['Descripcion_Oficial'] = df_sap_c[col_desc_sap].fillna("").astype(str)
+        df_sap_c['Precio_Oficial'] = pd.to_numeric(df_sap_c[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
+        
+        df_sap_limpio = df_sap_c[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
+        
+        # Deduplicar por actividad y código SAP para evitar repeticiones por contrata
+        df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
+        df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
+        
+        st.dataframe(df_matriz_final, use_container_width=True)
     else:
-        st.warning("No se encontró el archivo de contratistas.")
+        st.warning("No se encontraron los archivos de contratistas o precios SAP.")
 
 else:
     st.subheader("🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE")
