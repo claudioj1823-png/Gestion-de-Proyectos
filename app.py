@@ -77,10 +77,23 @@ df_sap = datos.get('sap')
 df_metas = datos.get('metas')
 
 if menu == "Panel Ejecutivo por Proyecto":
-    st.subheader(f"📌 Proyecto Seleccionado: {codigo_seleccionado}")
-    
     if codigo_seleccionado != "Todos":
         cod_clean = str(codigo_seleccionado).strip()
+        
+        # Buscar el nombre descriptivo del proyecto
+        nombre_proyecto_str = cod_clean
+        if df_codigos is not None and not df_codigos.empty:
+            col_codigo_p = df_codigos.columns[0]
+            cols_desc_p = [c for c in df_codigos.columns if 'nombre' in c.lower() or 'descripci' in c.lower() or ('proyecto' in c.lower() and c != col_codigo_p)]
+            if cols_desc_p:
+                col_desc_p = cols_desc_p[0]
+                df_codigos['Clean_Cod'] = df_codigos[col_codigo_p].astype(str).str.strip()
+                match_p = df_codigos[df_codigos['Clean_Cod'] == cod_clean]
+                if not match_p.empty:
+                    nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
+        
+        # Mostrar el nombre del proyecto de forma más compacta y elegante
+        st.markdown(f"<h5 style='color: #343a40; margin-bottom: 20px;'>📌 Proyecto Seleccionado: <b>{nombre_proyecto_str}</b></h5>", unsafe_allow_html=True)
         
         # 1. Mano de Obra Ejecutada del Proyecto
         monto_mo = 0.0
@@ -187,11 +200,11 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
-        # Cálculo del Total Ejecutado (Mano de Obra + Materiales SAP)
+        # Cálculo del Total Ejecutado y Porcentaje
         total_ejecutado = monto_mo + costo_materiales_total
         porcentaje_ejecutado = (total_ejecutado / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
 
-        # Tarjetas de Métricas Ejecutivas (5 columnas organizadas)
+        # Tarjetas Métricas Ejecutivas (5 columnas)
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Mano de Obra (RD$)", f"{monto_mo:,.2f}")
         c2.metric("Materiales SAP (RD$)", f"{costo_materiales_total:,.2f}")
