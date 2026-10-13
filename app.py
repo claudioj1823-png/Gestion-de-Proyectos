@@ -63,7 +63,7 @@ def cargar_datos_seguros():
     else:
         dfs['contratistas'] = None
 
-    # 4. Precios SAP (FORZADO ESTRICTAMENTE A HOJA 3)
+    # 4. Precios SAP (Forzado estricto a Hoja 3)
     if os.path.exists('Precios Sap.xlsx'):
         try:
             dfs['sap'] = limpiar_nombre_columnas(pd.read_excel('Precios Sap.xlsx', sheet_name='Hoja3'))
@@ -189,7 +189,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales utilizando estrictamente la Hoja 3 de Precios SAP
+        # 3. Procesamiento y Materiales utilizando la Hoja 3 de Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_materiales_mostrador = pd.DataFrame()
@@ -219,7 +219,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Filtrar actividades sin código SAP válido (remueve la fila fantasma de ceros)
             fuente_mat = fuente_mat[~fuente_mat['Clean_SAP'].isin(['', 'NAN', 'NONE', '0'])]
             
             fuente_mat_clean = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].mean()
@@ -229,7 +228,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # Columnas oficiales de la Hoja 3 de Precios SAP
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
                 col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
                 col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
@@ -252,7 +250,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo_Material'].sum()
                 df_materiales_calculados = df_resumen_mat.copy()
                 
-                # Versión formateada con formato contable profesional en RD$
                 df_display = df_resumen_mat.copy()
                 df_display['Cantidad Total'] = df_display['Cantidad_Total_Material'].apply(lambda x: f"{x:,.2f}".rstrip('0').rstrip('.') if x % 1 != 0 else f"{int(x):,}")
                 df_display['Precio Unitario SAP'] = df_display['Precio_Oficial'].apply(lambda x: f"RD$ {x:,.2f}")
@@ -305,86 +302,4 @@ if menu == "Panel Ejecutivo por Proyecto":
         # Tarjetas Métricas Ejecutivas
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
-        c2.metric("Materiales SAP (RD$)", f"RD$ {costo_materiales_total:,.2f}")
-        c3.metric("Costo Estimado Total (RD$)", f"RD$ {total_ejecutado:,.2f}")
-        c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
-        c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
-
-        st.markdown("---")
-        st.markdown("### 📊 Desglose Financiero y Operativo")
-        
-        col_g1, col_g2 = st.columns(2)
-        with col_g1:
-            df_grafico = pd.DataFrame({
-                'Concepto': ['Mano de Obra', 'Materiales SAP', 'Costo Estimado', 'Presupuesto Plan.'],
-                'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
-            })
-            fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto")
-            st.plotly_chart(fig_bar, use_container_width=True)
-            
-        with col_g2:
-            st.markdown("#### 🛠️ Materiales Instalados (Calculados - Hoja 3)")
-            if not df_materiales_mostrador.empty:
-                st.dataframe(df_materiales_mostrador, hide_index=True, use_container_width=True)
-            else:
-                st.info("No se encontraron materiales vinculados para este proyecto.")
-
-        # Tabla y Gráfico de Avance por Acción
-        st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
-        if not df_avance_acciones.empty:
-            st.dataframe(df_avance_acciones[['Acción', 'Planificado', 'Ejecutado', '% Avance']], use_container_width=True, hide_index=True)
-            
-            fig_comb = go.Figure()
-            fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Planificado'], name='Planificado', marker_color='#1f77b4'))
-            fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Ejecutado'], name='Ejecutado', marker_color='#2ca02c'))
-            fig_comb.update_layout(title=f"Avance Gráfico por Acción - {nombre_proyecto_str}", barmode='group', xaxis_title="Acciones", yaxis_title="Cantidades")
-            st.plotly_chart(fig_comb, use_container_width=True)
-        else:
-            st.info("No se encontraron metas planificadas para este proyecto.")
-                
-        # Detalle de Mano de Obra en Expansor Limpio
-        with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
-            if not df_mo_agrupado.empty:
-                st.dataframe(df_mo_agrupado, hide_index=True, use_container_width=True)
-            else:
-                st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
-    else:
-        st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
-
-elif menu == "Relación Mano de Obra y Materiales":
-    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades (Hoja 3)")
-    if df_contratistas is not None and df_sap is not None:
-        df_c_mat = df_contratistas.copy()
-        col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
-        col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
-        
-        df_c_mat['Clean_Act'] = df_c_mat[col_act].fillna("").astype(str).str.strip().str.upper()
-        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
-        df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        
-        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
-        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
-        
-        df_sap_c = df_sap.copy()
-        df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        df_sap_c['Descripcion_Oficial'] = df_sap_c[col_desc_sap].fillna("").astype(str)
-        df_sap_c['Precio_Oficial'] = pd.to_numeric(df_sap_c[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
-        
-        df_sap_limpio = df_sap_c[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
-        df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
-        df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
-        
-        st.dataframe(df_matriz_final, use_container_width=True)
-    else:
-        st.warning("No se encontraron los archivos de contratistas o precios SAP.")
-
-else:
-    st.subheader("🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE")
-    map_data = pd.DataFrame({
-        'lat': [18.4861, 18.5123, 18.4500, 18.5500],
-        'lon': [-69.8500, -69.8000, -69.6500, -69.7800],
-        'Proyecto': ['Proyecto Redes La Javilla', 'Ciudad Juan Bosch', 'Circuito SPER01', 'Rehabilitación LM3802R']
-    })
-    st.map(map_data)
-    st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
+        c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
