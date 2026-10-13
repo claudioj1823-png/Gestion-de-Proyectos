@@ -106,7 +106,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Blindada: Extracción Oficial de Descripción y Precios desde SAP
+        # 3. Lógica IDP Blindada: Extracción Oficial de Precios SAP Actualizados
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -145,17 +145,16 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # C. Extraer Descripción y Precios OFICIALES desde el maestro SAP
+                # C. Extraer Descripción y Precios OFICIALES exactos del archivo 'Precios Sap.xlsx'
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
-                col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1]) # Columna B de SAP
-                col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2]) # Columna C de SAP
+                col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
+                col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
                 
                 df_sap_copy = df_sap.copy()
                 df_sap_copy['Clean_SAP'] = df_sap_copy[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
                 df_sap_copy['Descripcion_Oficial'] = df_sap_copy[col_desc_sap].fillna("").astype(str)
                 df_sap_copy['Precio_Oficial'] = pd.to_numeric(df_sap_copy[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
                 
-                # Nos quedamos solo con las columnas limpias del maestro SAP para hacer el cruce perfecto
                 df_sap_limpio = df_sap_copy[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
                 
                 df_merge_sap = pd.merge(df_filtrado, df_sap_limpio, on='Clean_SAP', how='left')
