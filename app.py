@@ -87,9 +87,8 @@ if menu == "Panel Ejecutivo por Proyecto":
             df_mo_proy = df_mo[df_mo['Clean_Proy'] == cod_clean]
             monto_mo = pd.to_numeric(df_mo_proy[col_costo_mo], errors='coerce').sum()
 
-        # 2. Presupuesto Planificado y Metas
+        # 2. Presupuesto Planificado
         presupuesto_plan = 0.0
-        df_meta_proy = pd.DataFrame()
         if df_metas is not None and not df_metas.empty:
             col_proy_meta = 'Código Proyecto' if 'Código Proyecto' in df_metas.columns else df_metas.columns[0]
             col_presupuesto = 'PRESUPUESTO' if 'PRESUPUESTO' in df_metas.columns else df_metas.columns[-1]
@@ -101,41 +100,36 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Cruce Inteligente de Materiales (Mano de Obra ➔ Contratistas ➔ Precios SAP)
+        # 3. Cruce Directo y Robusto de Materiales (Mano de Obra ➔ Contratistas ➔ Precios SAP)
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
         fuente_mat = df_contratistas if (df_contratistas is not None and not df_contratistas.empty) else df_familia
         
-        if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty:
-            # Obtener actividades desde la mano de obra o desde las metas (buscando columnas flexibles)
-            acts_proy = []
-            if not df_mo_proy.empty and 'Actividad' in df_mo_proy.columns:
-                acts_proy = df_mo_proy['Actividad'].astype(str).str.strip().unique()
-            elif not df_meta_proy.empty:
-                col_act_meta = next((c for c in df_meta_proy.columns if 'accion' in c.lower() or 'partida' in c.lower() or 'actividad' in c.lower()), df_meta_proy.columns[3] if len(df_meta_proy.columns)>3 else None)
-                if col_act_meta:
-                    acts_proy = df_meta_proy[col_act_meta].astype(str).str.strip().unique()
+        if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
+            # Extraer todas las actividades ejecutadas en la mano de obra de este proyecto
+            acts_mo = df_mo_proy['Actividad'].astype(str).str.strip().unique()
             
-            if len(acts_proy) > 0:
-                col_act_mat = fuente_mat.columns[0]
-                df_mat_filtrado = fuente_mat[fuente_mat[col_act_mat].astype(str).str.strip().isin(acts_proy)].copy()
+            col_act_cont = fuente_mat.columns[0] # Columna 'Actividad' en contratistas
+            df_mat_filtrado = fuente_mat[fuente_mat[col_act_cont].astype(str).str.strip().isin(acts_mo)].copy()
+            
+            if not df_mat_filtrado.empty:
+                # Detectar columnas clave de forma dinámica en la tabla de contratistas y SAP
+                col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'codigo' in c.lower()), 'Codigo SAP')
+                col_cant_mat = fuente_mat.columns[-1] # La cantidad suele ser la última columna
                 
-                if not df_mat_filtrado.empty:
-                    col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'codigo' in c.lower()), fuente_mat.columns[4] if len(fuente_mat.columns)>4 else None)
-                    col_cant_mat = next((c for c in fuente_mat.columns if 'cantidad' in c.lower() or 'und' in c.lower()), fuente_mat.columns[-1])
-                    
-                    col_sap_prec = df_sap.columns[0]
-                    col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower()), df_sap.columns[-1])
-                    
-                    if col_sap_mat:
-                        df_sap['Clean_SAP'] = df_sap[col_sap_prec].astype(str).str.strip()
-                        df_mat_filtrado['Clean_SAP'] = df_mat_filtrado[col_sap_mat].astype(str).str.strip()
-                        
-                        df_merge = pd.merge(df_mat_filtrado, df_sap, on='Clean_SAP', how='inner')
-                        df_merge['Costo_Material'] = pd.to_numeric(df_merge[col_cant_mat], errors='coerce') * pd.to_numeric(df_merge[col_precio_final], errors='coerce')
-                        costo_materiales_total = df_merge['Costo_Material'].sum()
-                        df_materiales_calculados = df_merge
+                col_sap_prec = df_sap.columns[0]
+                col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower()), df_sap.columns[-1])
+                
+                df_sap['Clean_SAP'] = df_sap[col_sap_prec].astype(str).str.strip()
+                df_mat_filtrado['Clean_SAP'] = df_mat_filtrado[col_sap_mat].astype(str).str.strip()
+                
+                # Hacer el merge con los precios SAP
+                df_merge = pd.merge(df_mat_filtrado, df_sap, on='Clean_SAP', how='inner')
+                df_merge['Costo_Material'] = pd.to_numeric(df_merge[col_cant_mat], errors='coerce') * pd.to_numeric(df_merge[col_precio_final], errors='coerce')
+                
+                costo_materiales_total = df_merge['Costo_Material'].sum()
+                df_materiales_calculados = df_merge
 
         # Tarjetas de Indicadores
         col1, col2, col3, col4 = st.columns(4)
@@ -161,10 +155,10 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Materiales Asociados por Actividad")
             if not df_materiales_calculados.empty:
-                cols_show = [c for c in [df_materiales_calculados.columns[0], 'Descripción_MAT', 'Cantidad Material', 'Precio Final', 'Costo_Material'] if c in df_materiales_calculados.columns]
+                cols_show = [c for c in [fuente_mat.columns[0], 'Descripción_MAT', fuente_mat.columns[-1], 'Precio Final', 'Costo_Material'] if c in df_materiales_calculados.columns]
                 st.dataframe(df_materiales_calculados[cols_show].head(15), use_container_width=True)
             else:
-                st.info("No se encontraron materiales vinculados para este proyecto.")
+                st.info("No se encontraron materiales vinculados para las actividades de este proyecto.")
                 
         st.markdown("#### 📋 Detalle de Mano de Obra del Proyecto")
         if not df_mo_proy.empty:
