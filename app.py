@@ -35,6 +35,7 @@ def cargar_datos():
         if os.path.exists(ruta):
             try:
                 df = pd.read_excel(ruta)
+                # Limpiar espacios en nombres de columnas
                 df.columns = [str(c).strip() for c in df.columns]
                 dfs[clave] = df
             except Exception as e:
@@ -50,8 +51,9 @@ st.sidebar.markdown("### 🎯 Selección de Proyecto")
 
 df_codigos = datos.get('codigos')
 
-if df_codigos is not None and not df_codigos.empty and 'Código Proyecto' in df_codigos.columns:
-    lista_codigos = df_codigos['Código Proyecto'].dropna().astype(str).str.strip().unique().tolist()
+if df_codigos is not None and not df_codigos.empty:
+    col_codigo = df_codigos.columns[0]
+    lista_codigos = df_codigos[col_codigo].dropna().astype(str).str.strip().unique().tolist()
     codigo_seleccionado = st.sidebar.selectbox("Seleccione Código de Proyecto:", ["Todos"] + lista_codigos)
 else:
     st.sidebar.warning("No se encontró 'Codigos de proyectos.xlsx'")
@@ -72,43 +74,60 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.subheader(f"📌 Proyecto Seleccionado: {codigo_seleccionado}")
     
     if codigo_seleccionado != "Todos":
-        # 1. Mano de Obra Ejecutada (Usando 'Código Proy.' y 'Costo Total')
+        cod_clean = str(codigo_seleccionado).strip().lower()
+        
+        # 1. Mano de Obra Ejecutada
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
-        if df_mo is not None and not df_mo.empty and 'Código Proy.' in df_mo.columns and 'Costo Total' in df_mo.columns:
-            df_mo['Código Proy.'] = df_mo['Código Proy.'].astype(str).str.strip()
-            df_mo_proy = df_mo[df_mo['Código Proy.'] == str(codigo_seleccionado).strip()]
-            monto_mo = pd.to_numeric(df_mo_proy['Costo Total'], errors='coerce').sum()
+        if df_mo is not None and not df_mo.empty:
+            # Buscar columna que tenga 'proy' o 'código'
+            col_proy_mo = next((c for c in df_mo.columns if 'proy' in c.lower() or 'código' in c.lower()), df_mo.columns[-1])
+            col_costo = next((c for c in df_mo.columns if 'costo total' in c.lower() or 'total' in c.lower()), df_mo.columns[5])
+            
+            df_mo['Clean_Proy'] = df_mo[col_proy_mo].astype(str).str.strip().str.lower()
+            df_mo_proy = df_mo[df_mo['Clean_Proy'] == cod_clean]
+            monto_mo = pd.to_numeric(df_mo_proy[col_costo], errors='coerce').sum()
 
-        # 2. Presupuesto Planificado (Usando 'Código Proyecto' y 'PRESUPUESTO')
+        # 2. Presupuesto Planificado
         presupuesto_plan = 0.0
         df_meta_proy = pd.DataFrame()
-        if df_metas is not None and not df_metas.empty and 'Código Proyecto' in df_metas.columns and 'PRESUPUESTO' in df_metas.columns:
-            df_metas['Código Proyecto'] = df_metas['Código Proyecto'].astype(str).str.strip()
-            df_meta_proy = df_metas[df_metas['Código Proyecto'] == str(codigo_seleccionado).strip()]
-            val_presupuesto = pd.to_numeric(df_meta_proy['PRESUPUESTO'], errors='coerce').dropna()
+        if df_metas is not None and not df_metas.empty:
+            col_proy_meta = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower()), df_metas.columns[0])
+            col_presupuesto = next((c for c in df_metas.columns if 'presupuesto' in c.lower()), df_metas.columns[-1])
+            
+            df_metas['Clean_Proy'] = df_metas[col_proy_meta].astype(str).str.strip().str.lower()
+            df_meta_proy = df_metas[df_metas['Clean_Proy'] == cod_clean]
+            
+            val_presupuesto = pd.to_numeric(df_meta_proy[col_presupuesto], errors='coerce').dropna()
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Cruce de Actividades con Materiales (Precios SAP)
+        # 3. Cruce de Actividades y Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         if df_familia is not None and not df_familia.empty and df_sap is not None and not df_sap.empty:
-            if 'Actividad' in df_familia.columns and 'Codigo SAP' in df_familia.columns and 'Cantidad Material' in df_familia.columns:
-                if 'Codigo SAP' in df_sap.columns and 'Precio Final' in df_sap.columns:
-                    if not df_meta_proy.empty and 'Actividad / Partida' in df_meta_proy.columns:
-                        # Obtener actividades del proyecto desde las metas
-                        acts_proy = df_meta_proy['Actividad / Partida'].astype(str).str.strip().unique()
-                        df_fam_filtrado = df_familia[df_familia['Actividad'].astype(str).str.strip().isin(acts_proy)].copy()
-                        
-                        df_sap['Clean_SAP'] = df_sap['Codigo SAP'].astype(str).str.strip()
-                        df_fam_filtrado['Clean_SAP'] = df_fam_filtrado['Codigo SAP'].astype(str).str.strip()
-                        
-                        df_merge = pd.merge(df_fam_filtrado, df_sap, on='Clean_SAP', how='inner')
-                        df_merge['Costo_Material'] = pd.to_numeric(df_merge['Cantidad Material'], errors='coerce') * pd.to_numeric(df_merge['Precio Final'], errors='coerce')
-                        costo_materiales_total = df_merge['Costo_Material'].sum()
-                        df_materiales_calculados = df_merge
+            col_act_fam = next((c for c in df_familia.columns if 'actividad' in c.lower()), df_familia.columns[0])
+            col_sap_fam = next((c for c in df_familia.columns if 'sap' in c.lower()), df_familia.columns[3])
+            col_cant_mat = next((c for c in df_familia.columns if 'cantidad' in c.lower()), df_familia.columns[-1])
+            
+            col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower()), df_sap.columns[0])
+            col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower()), df_sap.columns[-1])
+            
+            if not df_meta_proy.empty:
+                col_act_meta = next((c for c in df_meta_proy.columns if 'actividad' in c.lower() or 'partida' in c.lower()), df_meta_proy.columns[3])
+                acts_proy = df_meta_proy[col_act_meta].astype(str).str.strip().unique()
+                
+                df_fam_filtrado = df_familia[df_familia[col_act_fam].astype(str).str.strip().isin(acts_proy)].copy()
+                
+                df_sap['Clean_SAP'] = df_sap[col_sap_prec].astype(str).str.strip()
+                df_fam_filtrado['Clean_SAP'] = df_fam_filtrado[col_sap_fam].astype(str).str.strip()
+                
+                df_merge = pd.merge(df_fam_filtrado, df_sap, on='Clean_SAP', how='inner')
+                df_merge['Costo_Material'] = pd.to_numeric(df_merge[col_cant_mat], errors='coerce') * pd.to_numeric(df_merge[col_precio_final], errors='coerce')
+                costo_materiales_total = df_merge['Costo_Material'].sum()
+                df_materiales_calculados = df_merge
 
+        # Tarjetas de Indicadores
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Mano de Obra Ejecutada (RD$)", f"{monto_mo:,.2f}")
         col2.metric("Presupuesto Planificado (RD$)", f"{presupuesto_plan:,.2f}")
@@ -132,17 +151,15 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Materiales Asociados por Actividad")
             if not df_materiales_calculados.empty:
-                cols_show = [c for c in ['Actividad', 'Descripción_MAT', 'Cantidad Material', 'Precio Final', 'Costo_Material'] if c in df_materiales_calculados.columns]
-                st.dataframe(df_materiales_calculados[cols_show].head(10), use_container_width=True)
+                st.dataframe(df_materiales_calculados.head(10), use_container_width=True)
             else:
-                st.info("No se encontraron materiales vinculados para este proyecto en las tablas.")
+                st.info("No se encontraron materiales vinculados para este proyecto.")
                 
         st.markdown("#### 📋 Detalle de Mano de Obra del Proyecto")
         if not df_mo_proy.empty:
-            cols_mo_show = [c for c in ['Actividad', 'DETALLE', 'Unds.', 'Costo Unit.', 'Cantidad', 'Costo Total', 'Contrata', 'Código Proy.'] if c in df_mo_proy.columns]
-            st.dataframe(df_mo_proy[cols_mo_show], use_container_width=True)
+            st.dataframe(df_mo_proy.head(15), use_container_width=True)
         else:
-            st.info("No se registraron registros de mano de obra para este código de proyecto.")
+            st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}' en el archivo de Mano de Obra.")
     else:
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
