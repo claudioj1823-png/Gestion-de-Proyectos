@@ -31,6 +31,21 @@ def limpiar_nombre_columnas(df):
         df.columns = [str(c).strip().replace('\n', ' ') for c in df.columns]
     return df
 
+def normalizar_texto(txt):
+    if not isinstance(txt, str):
+        return ""
+    import unicodedata
+    # Quitar acentos, pasar a mayúsculas y limpiar espacios
+    nfkd_form = unicodedata.normalize('NFKD', txt)
+    solo_ascii = "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+    clean = solo_ascii.upper().strip()
+    # Estandarizar plurales comunes (ej. Excavaciones -> Excavación)
+    if clean.endswith('ES'):
+        clean = clean[:-2]
+    elif clean.endswith('S') and not clean in ['PUESTA A TIERRA', 'TENDIDO DE CONDUCTOR']:
+        clean = clean[:-1]
+    return clean
+
 def cargar_datos():
     archivos = {
         'codigos': 'Codigos de proyectos.xlsx',
@@ -73,15 +88,16 @@ df_contratistas = datos.get('contratistas')
 df_sap = datos.get('sap')
 df_metas = datos.get('metas')
 
-# Mapeo Actividad -> Familia
+# Mapeo Actividad -> Familia normalizada
 dict_familia = {}
 if df_familia is not None and not df_familia.empty:
     col_act_f = next((c for c in df_familia.columns if 'actividad' in c.lower()), df_familia.columns[0])
     col_fam_f = next((c for c in df_familia.columns if 'familia' in c.lower()), df_familia.columns[-1])
     
-    df_familia['Clean_Act'] = df_familia[col_act_f].fillna("").astype(str).str.strip().str.upper()
-    df_familia['Clean_Fam'] = df_familia[col_fam_f].fillna("Otra Accion").astype(str).str.strip()
-    dict_familia = dict(zip(df_familia['Clean_Act'], df_familia['Clean_Fam']))
+    for _, row in df_familia.iterrows():
+        act_raw = str(row[col_act_f]).strip().upper()
+        fam_raw = str(row[col_fam_f]).strip()
+        dict_familia[act_raw] = normalizar_texto(fam_raw)
 
 # Barra lateral ejecutiva
 st.sidebar.markdown("### 🎛️ FILTROS EJECUTIVOS")
@@ -165,7 +181,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Consolidada para Materiales e Inventario de Mano de Obra
+        # 3. Lógica IDP Consolidada para Materiales
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -179,10 +195,10 @@ if menu == "Panel Ejecutivo por Proyecto":
             df_mo_proy['Actividad_Clean'] = df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
             df_mo_proy['Cantidad_Num'] = pd.to_numeric(df_mo_proy[col_cant_mo], errors='coerce').fillna(0)
             
-            df_mo_proy['Familia_Accion'] = df_mo_proy['Actividad_Clean'].map(dict_familia).fillna("Otra Accion")
+            df_mo_proy['Familia_Normalizada'] = df_mo_proy['Actividad_Clean'].map(dict_familia).fillna("OTRA")
             
-            df_mo_agrupado = df_mo_proy.groupby(['Familia_Accion', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
-            df_mo_agrupado.rename(columns={'Familia_Accion': 'Acción / Familia', 'Actividad_Clean': 'Actividad', 'Cantidad_Num': 'Cantidad Ejecutada'}, inplace=True)
+            df_mo_agrupado = df_mo_proy.groupby(['Familia_Normalizada', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
+            df_mo_agrupado.rename(columns={'Familia_Normalizada': 'Familia', 'Actividad_Clean': 'Actividad', 'Cantidad_Num': 'Cantidad Ejecutada'}, inplace=True)
             
             dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Ejecutada']))
             
@@ -243,9 +259,9 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
-        # 4. Cruce Estricto: Metas del Proyecto (Planificado) vs Ejecución Agrupada por Familia
+        # 4. Cruce Estricto: Las Metas del Proyecto mandan (Planificado vs Ejecutado por Familia Normalizada)
         df_avance_acciones = pd.DataFrame()
-        if df_metas is not None and not df_metas.empty and not df_mo_proy.empty:
+        if df_metas is not None and not df_metas.empty:
             col_proy_m = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
             df_metas['Clean_P_Meta'] = df_metas[col_proy_m].astype(str).str.strip()
             df_metas_proy = df_metas[df_metas['Clean_P_Meta'] == cod_clean].copy()
@@ -254,20 +270,28 @@ if menu == "Panel Ejecutivo por Proyecto":
                 col_accion_meta = next((c for c in df_metas_proy.columns if 'accion' in c.lower() or 'actividad' in c.lower()), df_metas_proy.columns[3])
                 col_cant_plan = next((c for c in df_metas_proy.columns if 'cantidad' in c.lower() or 'planifica' in c.lower()), df_metas_proy.columns[4])
                 
-                df_metas_proy['Acción'] = df_metas_proy[col_accion_meta].fillna("").astype(str).str.strip()
+                df_metas_proy['Acción_Original'] = df_metas_proy[col_accion_meta].fillna("").astype(str).str.strip()
+                df_metas_proy['Acción_Key'] = df_metas_proy['Acción_Original'].apply(normalizar_texto)
                 df_metas_proy['Planificado'] = pd.to_numeric(df_metas_proy[col_cant_plan], errors='coerce').fillna(0)
                 
-                # Agrupar ejecución de mano de obra del proyecto por Familia/Acción
-                df_ejec_familia = df_mo_proy.groupby('Familia_Accion', as_index=False)['Cantidad_Num'].sum()
-                df_ejec_familia.rename(columns={'Familia_Accion': 'Acción', 'Cantidad_Num': 'Ejecutado'}, inplace=True)
+                # Agrupar ejecución de mano de obra del proyecto por Familia Normalizada
+                if not df_mo_proy.empty:
+                    df_mo_proy['Familia_Key'] = df_mo_proy['Actividad_Clean'].map(dict_familia).fillna("OTRA")
+                    df_ejec_familia = df_mo_proy.groupby('Familia_Key', as_index=False)['Cantidad_Num'].sum()
+                    df_ejec_familia.rename(columns={'Familia_Key': 'Acción_Key', 'Cantidad_Num': 'Ejecutado'}, inplace=True)
+                else:
+                    df_ejec_familia = pd.DataFrame(columns=['Acción_Key', 'Ejecutado'])
                 
-                # Hacer el cruce tomando exclusivamente las acciones planificadas del proyecto (INNER JOIN)
+                # Hacer el cruce usando LEFT JOIN para mantener todas las acciones planificadas del proyecto
                 df_avance_acciones = pd.merge(
-                    df_metas_proy[['Acción', 'Planificado']],
-                    df_ejec_familia[['Acción', 'Ejecutado']],
-                    on='Acción',
-                    how='inner'
+                    df_metas_proy[['Acción_Original', 'Acción_Key', 'Planificado']],
+                    df_ejec_familia[['Acción_Key', 'Ejecutado']],
+                    on='Acción_Key',
+                    how='left'
                 ).fillna(0)
+                
+                df_avance_acciones.rename(columns={'Acción_Original': 'Acción'}, inplace=True)
+                df_avance_acciones = df_avance_acciones[['Acción', 'Planificado', 'Ejecutado']]
                 
                 # Calcular % de Avance
                 df_avance_acciones['% Avance'] = df_avance_acciones.apply(
@@ -338,14 +362,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             )
             st.plotly_chart(fig_comb, use_container_width=True)
         else:
-            st.info("No se encontraron metas planificadas para este proyecto o no hay coincidencias con las familias ejecutadas.")
+            st.info("No se encontraron metas planificadas para este proyecto.")
                 
         st.markdown("#### 📋 Detalle de Mano de Obra")
         if not df_mo_agrupado.empty:
             st.dataframe(
                 df_mo_agrupado.head(20),
                 column_config={
-                    "Acción / Familia": st.column_config.TextColumn("Acción / Familia", width="medium"),
+                    "Familia": st.column_config.TextColumn("Familia", width="medium"),
                     "Actividad": st.column_config.TextColumn("Actividad", width="medium"),
                     "Cantidad Ejecutada": st.column_config.NumberColumn("Cantidad Ejecutada", width="small", format="%.2f")
                 },
@@ -365,7 +389,7 @@ elif menu == "Relación Mano de Obra y Materiales":
         col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
         
         df_c_mat['Clean_Act'] = df_c_mat[col_act].fillna("").astype(str).str.strip().str.upper()
-        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("Otra Accion")
+        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
         df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
         
         col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
