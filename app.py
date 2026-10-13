@@ -76,12 +76,12 @@ if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
         cod_clean = str(codigo_seleccionado).strip()
         
-        # 1. Mano de Obra Ejecutada
+        # 1. Mano de Obra Ejecutada (Usando 'Código Proyecto' y 'Costo Total')
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
         if df_mo is not None and not df_mo.empty:
-            col_proy_mo = 'Código Proy.' if 'Código Proy.' in df_mo.columns else df_mo.columns[-1]
-            col_costo_mo = 'Costo Total' if 'Costo Total' in df_mo.columns else df_mo.columns[5]
+            col_proy_mo = 'Código Proyecto' if 'Código Proyecto' in df_mo.columns else [c for c in df_mo.columns if 'código' in c.lower()][0]
+            col_costo_mo = 'Costo Total' if 'Costo Total' in df_mo.columns else 'Costo'
             
             df_mo['Clean_Proy'] = df_mo[col_proy_mo].astype(str).str.strip()
             df_mo_proy = df_mo[df_mo['Clean_Proy'] == cod_clean]
@@ -101,7 +101,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Cruce usando Actividades Contratistas (Materiales, SAP y Cantidades) y Precios SAP
+        # 3. Cruce de Actividades Contratistas (Materiales, SAP y Cantidades) y Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
@@ -160,7 +160,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                 
         st.markdown("#### 📋 Detalle de Mano de Obra del Proyecto")
         if not df_mo_proy.empty:
-            st.dataframe(df_mo_proy.head(15), use_container_width=True)
+            cols_mo = [c for c in ['Actividad', 'DETALLE', 'Costo Unit.', 'Cantidad', 'Costo Total', 'Contrata', 'Supervisor'] if c in df_mo_proy.columns]
+            st.dataframe(df_mo_proy[cols_mo].head(15), use_container_width=True)
         else:
             st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
     else:
