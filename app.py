@@ -34,7 +34,14 @@ def cargar_datos():
     for clave, ruta in archivos.items():
         if os.path.exists(ruta):
             try:
-                df = pd.read_excel(ruta)
+                if clave == 'contratistas':
+                    # Cargar específicamente la pestaña con materiales si existe, como en el IDP
+                    try:
+                        df = pd.read_excel(ruta, sheet_name="Actividades con materiales")
+                    except Exception:
+                        df = pd.read_excel(ruta)
+                else:
+                    df = pd.read_excel(ruta)
                 df.columns = [str(c).strip() for c in df.columns]
                 dfs[clave] = df
             except Exception as e:
@@ -84,7 +91,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             col_costo_mo = 'Costo Total' if 'Costo Total' in df_mo.columns else df_mo.columns[5]
             
             df_mo['Clean_Proy'] = df_mo[col_proy_mo].astype(str).str.strip()
-            df_mo_proy = df_mo[df_mo['Clean_Proy'] == cod_clean]
+            df_mo_proy = df_mo[df_mo['Clean_Proy'] == cod_clean].copy()
             monto_mo = pd.to_numeric(df_mo_proy[col_costo_mo], errors='coerce').sum()
 
         # 2. Presupuesto Planificado
@@ -100,44 +107,46 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Cálculo de Materialesreplicando la lógica exacta del Generador de IDP
+        # 3. Cálculo de Materiales (Lógica IDP exacta y segura)
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
-        fuente_mat = df_contratistas if (df_contratistas is not None and not df_contratistas.empty) else df_familia
+        fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
-            # Agrupar la mano de obra del proyecto por Actividad y sumar las cantidades (como en el IDP)
-            col_act_mo = 'Actividad' if 'Actividad' in df_mo_proy.columns else df_mo_proy.columns[0]
-            col_cant_mo = 'Cantidad' if 'Cantidad' in df_mo_proy.columns else df_mo_proy.columns[4]
+            # Identificar columna de actividad en mano de obra
+            col_act_mo = next((c for c in df_mo_proy.columns if 'actividad' in c.lower()), df_mo_proy.columns[0])
+            col_cant_mo = next((c for c in df_mo_proy.columns if 'cantidad' in c.lower()), df_mo_proy.columns[4])
             
+            # Agrupar mano de obra por actividad sumando cantidades
             df_idp_agrupado = df_mo_proy.groupby(col_act_mo)[col_cant_mo].sum().to_dict()
             
-            # Filtrar el maestro de contratistas usando las actividades presentes en este proyecto
-            fuente_mat['Clean_Act'] = fuente_mat['Actividad'].astype(str).str.strip()
-            df_filtrado = fuente_mat[fuente_mat['Clean_Act'].isin([str(k).strip() for k in df_idp_agrupado.keys()])].copy()
+            # Identificar columna de actividad en la tabla de contratistas
+            col_act_cont = next((c for c in fuente_mat.columns if 'actividad' in c.lower()), fuente_mat.columns[0])
+            fuente_mat['Clean_Act'] = fuente_mat[col_act_cont].astype(str).str.strip()
+            
+            lista_acts_mo = [str(k).strip() for k in df_idp_agrupado.keys()]
+            df_filtrado = fuente_mat[fuente_mat['Clean_Act'].isin(lista_acts_mo)].copy()
             
             if not df_filtrado.empty:
                 df_filtrado["Cant_IDP"] = df_filtrado["Clean_Act"].map(df_idp_agrupado)
                 
-                # Detectar la columna de cantidad de material en el maestro de contratistas (excluyendo 'Cantidad' principal)
                 col_cant_mat_list = [c for c in df_filtrado.columns if "cant" in c.lower() and c.lower() != "cantidad" and c.lower() != "cant_idp"]
                 if col_cant_mat_list:
                     c_mat = col_cant_mat_list[0]
                     df_filtrado["Cantidad_Total_Material"] = pd.to_numeric(df_filtrado[c_mat], errors="coerce").fillna(0) * pd.to_numeric(df_filtrado["Cant_IDP"], errors="coerce").fillna(0)
                     
-                    # Detectar código SAP y Precios SAP
                     cols_cod_sap = [c for c in df_filtrado.columns if "sap" in c.lower() or "codigo" in c.lower()]
                     col_sap_mat = cols_cod_sap[0] if cols_cod_sap else df_filtrado.columns[4]
                     
                     col_sap_prec = df_sap.columns[0]
                     col_precio_final = next((c for c in df_sap.columns if "precio" in c.lower() or "costo" in c.lower()), df_sap.columns[-1])
                     
-                    df_sap['Clean_SAP'] = df_sap[col_sap_prec].astype(str).str.strip()
+                    df_sap_copy = df_sap.copy()
+                    df_sap_copy['Clean_SAP'] = df_sap_copy[col_sap_prec].astype(str).str.strip()
                     df_filtrado['Clean_SAP'] = df_filtrado[col_sap_mat].astype(str).str.strip()
                     
-                    # Unir con Precios SAP
-                    df_merge = pd.merge(df_filtrado, df_sap, on='Clean_SAP', how='inner')
+                    df_merge = pd.merge(df_filtrado, df_sap_copy, on='Clean_SAP', how='inner')
                     df_merge['Precio_Unitario_SAP'] = pd.to_numeric(df_merge[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0)
                     df_merge['Costo_Material'] = df_merge['Cantidad_Total_Material'] * df_merge['Precio_Unitario_SAP']
                     
