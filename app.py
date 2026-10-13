@@ -106,14 +106,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica Robusta y Exacta de Materiales y Costos SAP
+        # 3. Lógica Exacta de Agregación de Mano de Obra y Cruce con Materiales y Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
-            # Agrupar mano de obra del proyecto por Actividad sumando sus cantidades
+            # Agrupar la mano de obra del proyecto por Actividad sumando sus cantidades (ej. 1POHA-06 totalizado)
             col_act_mo = next((c for c in df_mo_proy.columns if 'actividad' in c.lower()), df_mo_proy.columns[0])
             col_cant_mo = next((c for c in df_mo_proy.columns if 'cantidad' in c.lower()), df_mo_proy.columns[4])
             
@@ -123,41 +123,39 @@ if menu == "Panel Ejecutivo por Proyecto":
             df_mo_agrupado = df_mo_proy.groupby('Clean_Act')['Clean_Cant'].sum().reset_index()
             df_mo_agrupado.rename(columns={'Clean_Cant': 'Cantidad_Ejecutada_Total'}, inplace=True)
             
-            # Normalizar actividades en el maestro de contratistas
+            # Normalizar Actividad en la fuente maestra de contratistas
             col_act_mat = fuente_mat.columns[0]
             fuente_mat['Clean_Act'] = fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
             
-            # Cruzar maestro con las actividades ejecutadas del proyecto
+            # Fusionar maestro de contratistas con las actividades agrupadas del proyecto
             df_c_proy = pd.merge(fuente_mat, df_mo_agrupado, on='Clean_Act', how='inner')
             
             if not df_c_proy.empty:
-                # La cantidad unitaria del material es la última columna
+                # La cantidad unitaria de material es la última columna del maestro
                 col_cant_mat = fuente_mat.columns[-1]
                 df_c_proy["Cantidad_Unitaria_Mat"] = pd.to_numeric(df_c_proy[col_cant_mat], errors="coerce").fillna(0)
+                
+                # Cálculo de la cantidad total del material (Cantidad Unitaria * Cantidad Total Ejecutada de la Actividad)
                 df_c_proy["Cantidad_Total_Material"] = df_c_proy["Cantidad_Unitaria_Mat"] * df_c_proy["Cantidad_Ejecutada_Total"]
                 
-                # Normalizar códigos SAP de forma estricta (quitando decimales tipo .0)
-                cols_cod_sap = [c for c in df_c_proy.columns if "sap" in c.lower() or "codigo" in c.lower()]
-                col_sap_mat = cols_cod_sap[0] if cols_cod_sap else df_c_proy.columns[4]
+                # Identificar columnas correctas de Código SAP, Descripción del Material y Unidad
+                col_sap_mat = next((c for c in df_c_proy.columns if 'sap' in c.lower() or 'codigo' in c.lower()), df_c_proy.columns[4])
+                desc_mat_col = next((c for c in df_c_proy.columns if 'descripci_mat' in c.lower() or ('mat' in c.lower() and c != col_sap_mat)), df_c_proy.columns[5])
+                und_col = next((c for c in df_c_proy.columns if 'unid' in c.lower()), None)
                 
-                cols_desc_mat = [c for c in df_c_proy.columns if "mat" in c.lower() or "descripci" in c.lower()]
-                desc_mat_col = cols_desc_mat[0] if cols_desc_mat else col_sap_mat
-                
-                cols_und = [c for c in df_c_proy.columns if "unid" in c.lower()]
-                und_col = cols_und[0] if cols_und else None
-                
+                # Normalizar códigos SAP (quitando decimales tipo .0)
                 col_sap_prec = df_sap.columns[0]
-                col_precio_final = next((c for c in df_sap.columns if "precio" in c.lower() or "costo" in c.lower()), df_sap.columns[-1])
+                col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[-1])
                 
                 df_sap_copy = df_sap.copy()
                 df_sap_copy['Clean_SAP'] = pd.to_numeric(df_sap_copy[col_sap_prec], errors='coerce').fillna(0).astype(int).astype(str)
                 df_c_proy['Clean_SAP'] = pd.to_numeric(df_c_proy[col_sap_mat], errors='coerce').fillna(0).astype(int).astype(str)
                 
-                # Merge con Precios SAP
+                # Cruce con Precios SAP
                 df_merge = pd.merge(df_c_proy, df_sap_copy, on='Clean_SAP', how='inner')
                 df_merge['Precio_Unitario_SAP'] = pd.to_numeric(df_merge[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0)
                 
-                # Agrupar requerimiento consolidado por Código SAP
+                # Agrupar por Código SAP sumando las cantidades totales y obteniendo el precio unitario
                 cols_agrupar = [col_sap_mat, desc_mat_col]
                 if und_col:
                     cols_agrupar.append(und_col)
@@ -168,7 +166,19 @@ if menu == "Panel Ejecutivo por Proyecto":
                 })
                 
                 df_resumen_mat['Costo_Material'] = df_resumen_mat['Cantidad_Total_Material'] * df_resumen_mat['Precio_Unitario_SAP']
-                costo_materiales_total = df_resumen_mat['Costo_Material'].sum()
+                
+                # Renombrar para presentación limpia
+                renombres = {
+                    col_sap_mat: "Código SAP",
+                    desc_mat_col: "Descripción de Material",
+                    "Cantidad_Total_Material": "Cantidad Total",
+                    "Costo_Material": "Costo Total"
+                }
+                if und_col:
+                    renombres[und_col] = "Unidad"
+                df_resumen_mat = df_resumen_mat.rename(columns=renombres)
+                
+                costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
         # Tarjetas de Indicadores
@@ -193,12 +203,11 @@ if menu == "Panel Ejecutivo por Proyecto":
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales")
+            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales (Agrupado)")
             if not df_materiales_calculados.empty:
-                cols_show = [c for c in [df_materiales_calculados.columns[0], df_materiales_calculados.columns[1], 'Cantidad_Total_Material', 'Costo_Material'] if c in df_materiales_calculados.columns]
-                st.dataframe(df_materiales_calculados[cols_show].head(15), use_container_width=True)
+                st.dataframe(df_materiales_calculados.head(15), use_container_width=True)
             else:
-                st.info("No se encontraron materiales vinculados para las actividades de este proyecto.")
+                st.info("No se encontraron materiales vinculados para este proyecto.")
                 
         st.markdown("#### 📋 Detalle de Mano de Obra del Proyecto")
         if not df_mo_proy.empty:
