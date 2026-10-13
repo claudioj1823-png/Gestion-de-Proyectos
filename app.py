@@ -187,13 +187,17 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Mano de Obra Ejecutada (RD$)", f"{monto_mo:,.2f}")
-        col2.metric("Presupuesto Planificado (RD$)", f"{presupuesto_plan:,.2f}")
-        col3.metric("Costo Materiales (SAP) (RD$)", f"{costo_materiales_total:,.2f}")
-        
-        porcentaje_ejecutado = (monto_mo / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
-        col4.metric("% Ejecución Presupuestaria", f"{porcentaje_ejecutado:.1f}%")
+        # Cálculo del Total Ejecutado (Mano de Obra + Materiales SAP)
+        total_ejecutado = monto_mo + costo_materiales_total
+        porcentaje_ejecutado = (total_ejecutado / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
+
+        # Tarjetas de Métricas Ejecutivas (5 columnas organizadas)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Mano de Obra (RD$)", f"{monto_mo:,.2f}")
+        c2.metric("Materiales SAP (RD$)", f"{costo_materiales_total:,.2f}")
+        c3.metric("Total Ejecutado (RD$)", f"{total_ejecutado:,.2f}")
+        c4.metric("Presupuesto Plan. (RD$)", f"{presupuesto_plan:,.2f}")
+        c5.metric("% Ejecución", f"{porcentaje_ejecutado:.1f}%")
 
         st.markdown("---")
         st.markdown("### 📊 Desglose Financiero y Materiales Vinculados")
@@ -201,8 +205,8 @@ if menu == "Panel Ejecutivo por Proyecto":
         col_g1, col_g2 = st.columns(2)
         with col_g1:
             df_grafico = pd.DataFrame({
-                'Concepto': ['Mano de Obra', 'Materiales SAP', 'Presupuesto Plan.'],
-                'Monto (RD$)': [monto_mo, costo_materiales_total, presupuesto_plan]
+                'Concepto': ['Mano de Obra', 'Materiales SAP', 'Total Ejecutado', 'Presupuesto Plan.'],
+                'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
             })
             fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto")
             st.plotly_chart(fig_bar, use_container_width=True)
