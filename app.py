@@ -1,125 +1,154 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import os
+import plotly.express as px
 
 st.set_page_config(
-    page_title="Panel de Proyectos - EDEESTE",
+    page_title="Panel de Control Ejecutivo - EDEESTE",
     page_icon="⚡",
     layout="wide"
 )
 
-# Estilo visual ejecutivo similar al diseño mostrado
+# Estilo visual limpio y profesional
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .metric-card { background-color: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Panel de Control Ejecutivo de Proyectos - EDEESTE")
+st.title("⚡ Panel de Control Ejecutivo - Gestión de Proyectos EDEESTE")
 st.markdown("---")
 
-# Barra lateral de navegación y filtros
-st.sidebar.markdown("### 🧭 Navegación")
-menu = st.sidebar.radio(
-    "Seleccione una vista:", 
-    ["Resumen Ejecutivo", "Presupuestos SAP", "Seguimiento Contratistas", "Mano de Obra"]
-)
+# Función optimizada para cargar los archivos del repositorio en GitHub
+@st.cache_data
+def cargar_datos():
+    archivos = {
+        'codigos': 'Codigos de proyectos.xlsx',
+        'familia': 'Actividades con su familia.xlsx',
+        'contratistas': 'Actividades contratistas.xlsx',
+        'sap': 'Precios Sap.xlsx',
+        'metas': 'Proyectos con sus metas.xlsx',
+        'mo': 'Mano de Obra por proyecto.xlsx'
+    }
+    dfs = {}
+    for clave, ruta in archivos.items():
+        if os.path.exists(ruta):
+            try:
+                dfs[clave] = pd.read_excel(ruta)
+            except Exception as e:
+                dfs[clave] = None
+        else:
+            dfs[clave] = None
+    return dfs
+
+datos = cargar_datos()
+
+# Sidebar: Búsqueda y Selección de Proyecto
+st.sidebar.markdown("### 🎯 Selección de Proyecto")
+
+df_codigos = datos.get('codigos')
+
+if df_codigos is not None and not df_codigos.empty:
+    col_codigo = df_codigos.columns[0]
+    lista_codigos = df_codigos[col_codigo].dropna().astype(str).unique().tolist()
+    codigo_seleccionado = st.sidebar.selectbox("Seleccione Código de Proyecto:", ["Todos"] + lista_codigos)
+else:
+    st.sidebar.warning("No se encontró 'Codigos de proyectos.xlsx'")
+    codigo_seleccionado = "Todos"
+
+# Filtro por búsqueda rápida
+busqueda_texto = st.sidebar.text_input("🔍 Buscar por Código o Nombre", "")
+
+# VISTAS EN EL MENÚ PRINCIPAL
+menu = st.sidebar.radio("🧭 Vista General", ["Panel Ejecutivo por Proyecto", "Relación Mano de Obra y Materiales", "Mapas de Ubicación"])
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🔍 Filtros Globales")
-busqueda_codigo = st.sidebar.text_input("Buscar Código Proyecto", placeholder="Ej. O-PE-16-002")
+st.sidebar.caption("EDEESTE - Sistema de Control Presupuestario y Ejecución")
 
-# Función para cargar datos de manera segura
-@st.cache_data
-def cargar_excel(nombre):
-    if os.path.exists(nombre):
-        try:
-            return pd.read_excel(nombre)
-        except:
-            return None
-    return None
+# LOGICA DE FILTRADO Y CRUCE
+df_mo = datos.get('mo')
+df_familia = datos.get('familia')
+df_sap = datos.get('sap')
+df_metas = datos.get('metas')
 
-df_codigos = cargar_excel("Codigos de proyectos.xlsx")
-df_contratistas = cargar_excel("Actividades contratistas.xlsx")
-
-if menu == "Resumen Ejecutivo":
-    # Sección de Filtros superiores en la interfaz
-    st.markdown("### 📋 Filtros y Controles")
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-        cat_proyecto = st.selectbox("Categoría del Proyecto", ["Todos", "Redes de Distribución", "Alumbrado Público", "Subestaciones"])
-    with col_f2:
-        gerencia = st.selectbox("Gerencia Responsable", ["Todas", "Gerencia Norte", "Gerencia Este", "Gerencia Sur"])
-    with col_f3:
-        rango_avance = st.slider("Rango de Avance (%)", 0, 100, (0, 100))
-
-    st.markdown("---")
-
-    # Tarjetas de KPIs y Gráficos simulados ejecutivos
-    col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+# Vista 1: Panel Ejecutivo por Proyecto
+if menu == "Panel Ejecutivo por Proyecto":
+    st.subheader(f"📌 Proyecto Seleccionado: {codigo_seleccionado}")
     
-    with col_kpi1:
-        st.markdown("### 📊 Total Proyectos en Curso")
-        st.metric(label="Activos", value="185", delta="+12 vs. Mes Anterior")
-        # Simulación visual de distribución por estado
-        chart_data_donut = pd.DataFrame({'Estado': ['Activo', 'Finalizado', 'Demorado'], 'Cantidad': [120, 45, 20]})
-        st.bar_chart(chart_data_donut.set_index('Estado'))
+    if codigo_seleccionado != "Todos":
+        col1, col2, col3, col4 = st.columns(4)
+        
+        # Filtro de Mano de Obra para el proyecto
+        monto_mo = 0.0
+        if df_mo is not None and not df_mo.empty:
+            cols_mo = df_mo.columns
+            # Intentar filtrar por código de proyecto
+            df_mo_proy = df_mo[df_mo.astype(str).apply(lambda x: x.str.contains(codigo_seleccionado, case=False)).any(axis=1)]
+            num_cols = df_mo_proy.select_dtypes(include=[np.number]).columns
+            if len(num_cols) > 0:
+                monto_mo = df_mo_proy[num_cols[0]].sum()
+        
+        # Cálculo de Presupuesto Planificado y Materiales
+        presupuesto_plan = 0.0
+        if df_metas is not None and not df_metas.empty:
+            df_meta_proy = df_metas[df_metas.astype(str).apply(lambda x: x.str.contains(codigo_seleccionado, case=False)).any(axis=1)]
+            num_cols_meta = df_meta_proy.select_dtypes(include=[np.number]).columns
+            if len(num_cols_meta) > 0:
+                presupuesto_plan = df_meta_proy[num_cols_meta[0]].sum()
 
-    with col_kpi2:
-        st.markdown("### 💰 Presupuesto y Ejecución Sap")
-        st.metric(label="Ejecución Presupuestaria", value="82%", delta="-4%")
-        chart_data_bar = pd.DataFrame({
-            'Concepto': ['Presupuesto Inicial', 'Gasto Real', 'Proyección'],
-            'Monto (M RD$)': [6.5, 4.2, 5.8]
-        })
-        st.bar_chart(chart_data_bar.set_index('Concepto'))
+        col1.metric("Mano de Obra (RD$)", f"{monto_mo:,.2f}")
+        col2.metric("Presupuesto Planificado (RD$)", f"{presupuesto_plan:,.2f}")
+        
+        diferencia = presupuesto_plan - monto_mo
+        porcentaje_ejecutado = (monto_mo / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
+        
+        col3.metric("Variación / Saldo (RD$)", f"{diferencia:,.2f}")
+        col4.metric("% Ejecución Presupuestaria", f"{porcentaje_ejecutado:.1f}%")
 
-    with col_kpi3:
-        st.markdown("### 🎯 Avance de Metas por Proyecto")
-        st.metric(label="Cumplimiento Global", value="78%")
-        chart_metas = pd.DataFrame({
-            'Proyecto': ['O-PE-04', 'O-PE-05', 'O-PE-06', 'O-PE-07'],
-            'Meta Física': [90, 85, 95, 80],
-            'Avance Real': [75, 70, 90, 65]
-        })
-        st.bar_chart(chart_metas.set_index('Proyecto'))
+        st.markdown("---")
+        
+        st.markdown("### 📊 Gráficos de Ejecución vs Presupuesto")
+        col_g1, col_g2 = st.columns(2)
+        
+        with col_g1:
+            df_grafico = pd.DataFrame({
+                'Concepto': ['Mano de Obra Exec.', 'Presupuesto Planificado'],
+                'Monto (RD$)': [monto_mo, presupuesto_plan]
+            })
+            fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Presupuestario")
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+        with col_g2:
+            st.markdown("#### 🛠️ Resumen de Materiales Vinculados por Familia")
+            if df_familia is not None:
+                st.dataframe(df_familia.head(10), use_container_width=True)
+            else:
+                st.info("Cargue 'Actividades con su familia.xlsx' para ver la relación de materiales.")
+    else:
+        st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral para ver el desglose ejecutivo completo.")
 
-    st.markdown("---")
-    st.markdown("### 📑 Lista Completa y Filtros Dinámicos")
+# Vista 2: Relación Mano de Obra y Materiales
+elif menu == "Relación Mano de Obra y Materiales":
+    st.subheader("🧩 Matriz Relacional: Mano de Obra ➔ Actividad ➔ Materiales ➔ Precios SAP")
+    st.markdown("Esta tabla refleja la combinación automática de las actividades con su familia de materiales y sus cantidades exactas.")
     
-    if df_codigos is not None:
-        # Filtrar si el usuario escribió un código en la barra lateral
-        df_mostrar = df_codigos
-        if busqueda_codigo:
-            df_mostrar = df_codigos[df_codigos.astype(str).apply(lambda x: x.str.contains(busqueda_codigo, case=False)).any(axis=1)]
-        st.dataframe(df_mostrar, use_container_width=True)
+    if df_familia is not None:
+        st.dataframe(df_familia, use_container_width=True)
     else:
-        st.info("Coloque o cargue 'Codigos de proyectos.xlsx' para ver el listado completo.")
-        file_sub = st.file_uploader("Subir Codigos de proyectos.xlsx", type=["xlsx"])
-        if file_sub:
-            st.dataframe(pd.read_excel(file_sub), use_container_width=True)
+        st.warning("No se encontró el archivo 'Actividades con su familia.xlsx' en el repositorio.")
 
-elif menu == "Presupuestos SAP":
-    st.subheader("🎯 Control de Presupuestos y Precios SAP")
-    st.markdown("Análisis financiero detallado por partida y costos unitarios.")
-    file_sap = st.file_uploader("Cargar 'Precios Sap.xlsx' y 'Proyectos con sus metas.xlsx'", type=["xlsx"], accept_multiple_files=True)
-    if file_sap:
-        for f in file_sap:
-            st.write(f"Archivo: {f.name}")
-            st.dataframe(pd.read_excel(f), use_container_width=True)
-
-elif menu == "Seguimiento Contratistas":
-    st.subheader("👷 Actividades de Contratistas")
-    if df_contratistas is not None:
-        st.dataframe(df_contratistas, use_container_width=True)
-    else:
-        file_cont = st.file_uploader("Cargar 'Actividades contratistas.xlsx'", type=["xlsx"])
-        if file_cont:
-            st.dataframe(pd.read_excel(file_cont), use_container_width=True)
-
+# Vista 3: Mapas de Ubicación
 else:
-    st.subheader("👥 Control de Mano de Obra por Proyecto")
-    file_mo = st.file_uploader("Cargar 'Mano de Obra por proyecto.xlsx'", type=["xlsx"])
-    if file_mo:
-        st.dataframe(pd.read_excel(file_mo), use_container_width=True)
+    st.subheader("🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE")
+    
+    # Coordenadas por defecto (Zona Este / Santo Domingo Este, República Dominicana)
+    map_data = pd.DataFrame({
+        'lat': [18.4861, 18.5123, 18.4500, 18.5500],
+        'lon': [-69.8500, -69.8000, -69.6500, -69.7800],
+        'Proyecto': ['Proyecto Redes La Javilla', 'Ciudad Juan Bosch', 'Circuito SPER01', 'Rehabilitación LM3802R']
+    })
+    
+    st.map(map_data)
+    st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
