@@ -1,4 +1,4 @@
-import streamlit as st
+       import streamlit as st
 import pandas as pd
 import numpy as np
 import os
@@ -105,7 +105,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
-         fuente_materiales = df_contratistas if (df_contratistas is not None and not df_contratistas.empty) else df_familia
+        fuente_materiales = df_contratistas if (df_contratistas is not None and not df_contratistas.empty) else df_familia
         
         if fuente_materiales is not None and not fuente_materiales.empty and df_sap is not None and not df_sap.empty:
             col_act_cont = 'Actividad' if 'Actividad' in fuente_materiales.columns else fuente_materiales.columns[0]
