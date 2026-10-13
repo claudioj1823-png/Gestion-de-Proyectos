@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(
@@ -10,21 +11,19 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilos CSS con alto contraste y diseño ejecutivo corporativo
+# Estilos CSS limpios y corporativos con contraste perfecto
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: #ffffff; }
-    .stMetric { background-color: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    .stMetric label { color: #ffffff !important; font-weight: 700; font-size: 14px; }
-    .stMetric [data-testid="stMetricValue"] { color: #58a6ff !important; font-size: 24px; font-weight: bold; }
-    h1, h2, h3, h4, h5, h6 { color: #ffffff !important; }
-    p, span, label, div { color: #f0f6fc; }
-    .sidebar .sidebar-content { background-color: #161b22; }
+    .main { background-color: #f8f9fa; color: #212529; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .stMetric label { color: #6c757d !important; font-weight: 600; font-size: 14px; }
+    .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
+    h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("## ⚡ EDEESTE • Sistema de Gestión de Proyectos")
-st.markdown("<h4 style='color: #58a6ff; font-weight: 500;'>GERENCIA EJECUCIÓN DE PROYECTOS • PANEL EJECUTIVO</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='color: #6c757d; font-weight: 500;'>GERENCIA EJECUCIÓN DE PROYECTOS • PANEL EJECUTIVO</h4>", unsafe_allow_html=True)
 st.markdown("---")
 
 def limpiar_nombre_columnas(df):
@@ -35,7 +34,7 @@ def limpiar_nombre_columnas(df):
 def cargar_datos():
     archivos = {
         'codigos': 'Codigos de proyectos.xlsx',
-        'familia': 'Actividades con sus familia.xlsx',
+        'familia': 'Actividades con su familia.xlsx',
         'contratistas': 'Actividades contratistas.xlsx',
         'sap': 'Precios Sap.xlsx',
         'metas': 'Proyectos con sus metas.xlsx',
@@ -56,7 +55,14 @@ def cargar_datos():
             except Exception as e:
                 dfs[clave] = None
         else:
-            dfs[clave] = None
+            # Fallback por si el nombre tiene alguna ligera variación de espacio o letra
+            if clave == 'familia' and os.path.exists('Actividades con sus familia.xlsx'):
+                try:
+                    dfs[clave] = limpiar_nombre_columnas(pd.read_excel('Actividades con sus familia.xlsx'))
+                except:
+                    dfs[clave] = None
+            else:
+                dfs[clave] = None
     return dfs
 
 datos = cargar_datos()
@@ -126,7 +132,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 if not match_p.empty:
                     nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
         
-        st.markdown(f"<h4 style='color: #ffffff; margin-bottom: 15px;'>📌 PROYECTO: <b style='color: #58a6ff;'>{nombre_proyecto_str}</b></h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color: #212529; margin-bottom: 15px;'>📌 PROYECTO: <b style='color: #0d6efd;'>{nombre_proyecto_str}</b></h4>", unsafe_allow_html=True)
         
         # 1. Mano de Obra Ejecutada filtrada
         monto_mo = 0.0
@@ -267,13 +273,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                     df_avance_acciones = df_metas_proy[['Accion_Clean', 'Planificado']].rename(columns={'Accion_Clean': 'Acción'})
                     df_avance_acciones['Ejecutado'] = 0
                 
-                # Calcular % de Avance
                 df_avance_acciones['% Avance'] = df_avance_acciones.apply(
                     lambda r: f"{(r['Ejecutado'] / r['Planificado'] * 100):.1f}%" if r['Planificado'] > 0 else "0.0%",
-                    axis=1
-                )
-                df_avance_acciones['Avance_Num'] = df_avance_acciones.apply(
-                    lambda r: (r['Ejecutado'] / r['Planificado'] * 100) if r['Planificado'] > 0 else 0.0,
                     axis=1
                 )
 
@@ -289,7 +290,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         c5.metric("% Ejecución", f"{porcentaje_ejecutado:.1f}%")
 
         st.markdown("---")
-        st.markdown("<h3 style='color: #ffffff;'>📊 Desglose Financiero y Operativo</h3>", unsafe_allow_html=True)
+        st.markdown("### 📊 Desglose Financiero y Operativo")
         
         col_g1, col_g2 = st.columns(2)
         with col_g1:
@@ -297,28 +298,26 @@ if menu == "Panel Ejecutivo por Proyecto":
                 'Concepto': ['Mano de Obra', 'Materiales SAP', 'Total Ejecutado', 'Presupuesto Plan.'],
                 'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
             })
-            fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto", template="plotly_dark")
+            fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto")
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("<h4 style='color: #ffffff;'>🛠️ Materiales Instalados</h4>", unsafe_allow_html=True)
+            st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_calculados.empty:
                 st.dataframe(df_materiales_calculados.head(15), use_container_width=True)
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Sección Avance Total por Circuito / Acciones (Estilo Gráfico Combinado Barras + Línea)
-        st.markdown("<h4 style='color: #ffffff;'>🎯 Avance Total por Acción (Planificado vs Ejecutado)</h4>", unsafe_allow_html=True)
+        # Sección Avance Total por Circuito / Acciones
+        st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         
         if not df_avance_acciones.empty:
-            # Mostrar tabla limpia idéntica al Excel ejecutivo
             st.dataframe(
                 df_avance_acciones[['Acción', 'Planificado', 'Ejecutado', '% Avance']],
                 use_container_width=True,
                 hide_index=True
             )
             
-            # Gráfico combinado de barras (Planificado / Ejecutado) y línea (% Avance)
             fig_comb = go.Figure()
             fig_comb.add_trace(go.Bar(
                 x=df_avance_acciones['Acción'],
@@ -336,7 +335,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             fig_comb.update_layout(
                 title=f"Avance Gráfico por Acción - {nombre_proyecto_str}",
                 barmode='group',
-                template='plotly_dark',
                 xaxis_title="Acciones",
                 yaxis_title="Cantidades",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -345,7 +343,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         else:
             st.info("No se encontraron metas planificadas para generar la comparativa de avance.")
                 
-        st.markdown("<h4 style='color: #ffffff;'>📋 Detalle de Mano de Obra por Actividad y Familia</h4>", unsafe_allow_html=True)
+        st.markdown("#### 📋 Detalle de Mano de Obra")
         if not df_mo_agrupado.empty:
             st.dataframe(
                 df_mo_agrupado.head(20),
