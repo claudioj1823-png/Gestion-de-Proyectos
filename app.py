@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilos CSS limpios y corporativos con contraste perfecto
+# Estilos CSS limpios y corporativos
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; color: #212529; }
@@ -55,7 +55,6 @@ def cargar_datos():
             except Exception as e:
                 dfs[clave] = None
         else:
-            # Fallback por si el nombre tiene alguna ligera variación de espacio o letra
             if clave == 'familia' and os.path.exists('Actividades con sus familia.xlsx'):
                 try:
                     dfs[clave] = limpiar_nombre_columnas(pd.read_excel('Actividades con sus familia.xlsx'))
@@ -166,7 +165,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Consolidada para Materiales y Mano de Obra por Familia
+        # 3. Lógica IDP Consolidada para Materiales e Inventario de Mano de Obra
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -244,9 +243,9 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
 
-        # 4. Procesar Metas Planificadas vs Ejecutadas con % de Avance
+        # 4. Cruce Estricto: Metas del Proyecto (Planificado) vs Ejecución Agrupada por Familia
         df_avance_acciones = pd.DataFrame()
-        if df_metas is not None and not df_metas.empty:
+        if df_metas is not None and not df_metas.empty and not df_mo_proy.empty:
             col_proy_m = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
             df_metas['Clean_P_Meta'] = df_metas[col_proy_m].astype(str).str.strip()
             df_metas_proy = df_metas[df_metas['Clean_P_Meta'] == cod_clean].copy()
@@ -255,24 +254,22 @@ if menu == "Panel Ejecutivo por Proyecto":
                 col_accion_meta = next((c for c in df_metas_proy.columns if 'accion' in c.lower() or 'actividad' in c.lower()), df_metas_proy.columns[3])
                 col_cant_plan = next((c for c in df_metas_proy.columns if 'cantidad' in c.lower() or 'planifica' in c.lower()), df_metas_proy.columns[4])
                 
-                df_metas_proy['Accion_Clean'] = df_metas_proy[col_accion_meta].fillna("").astype(str).str.strip().str.title()
+                df_metas_proy['Acción'] = df_metas_proy[col_accion_meta].fillna("").astype(str).str.strip()
                 df_metas_proy['Planificado'] = pd.to_numeric(df_metas_proy[col_cant_plan], errors='coerce').fillna(0)
                 
-                if not df_mo_agrupado.empty:
-                    df_ejec_familia = df_mo_agrupado.groupby('Acción / Familia', as_index=False)['Cantidad Ejecutada'].sum()
-                    df_ejec_familia['Accion_Clean'] = df_ejec_familia['Acción / Familia'].str.strip().str.title()
-                    
-                    df_avance_acciones = pd.merge(
-                        df_metas_proy[['Accion_Clean', 'Planificado']],
-                        df_ejec_familia[['Accion_Clean', 'Cantidad Ejecutada']],
-                        on='Accion_Clean',
-                        how='outer'
-                    ).fillna(0)
-                    df_avance_acciones.rename(columns={'Accion_Clean': 'Acción', 'Cantidad Ejecutada': 'Ejecutado'}, inplace=True)
-                else:
-                    df_avance_acciones = df_metas_proy[['Accion_Clean', 'Planificado']].rename(columns={'Accion_Clean': 'Acción'})
-                    df_avance_acciones['Ejecutado'] = 0
+                # Agrupar ejecución de mano de obra del proyecto por Familia/Acción
+                df_ejec_familia = df_mo_proy.groupby('Familia_Accion', as_index=False)['Cantidad_Num'].sum()
+                df_ejec_familia.rename(columns={'Familia_Accion': 'Acción', 'Cantidad_Num': 'Ejecutado'}, inplace=True)
                 
+                # Hacer el cruce tomando exclusivamente las acciones planificadas del proyecto (INNER JOIN)
+                df_avance_acciones = pd.merge(
+                    df_metas_proy[['Acción', 'Planificado']],
+                    df_ejec_familia[['Acción', 'Ejecutado']],
+                    on='Acción',
+                    how='inner'
+                ).fillna(0)
+                
+                # Calcular % de Avance
                 df_avance_acciones['% Avance'] = df_avance_acciones.apply(
                     lambda r: f"{(r['Ejecutado'] / r['Planificado'] * 100):.1f}%" if r['Planificado'] > 0 else "0.0%",
                     axis=1
@@ -308,7 +305,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Sección Avance Total por Circuito / Acciones
+        # Sección Avance Total por Acción (Planificado vs Ejecutado)
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         
         if not df_avance_acciones.empty:
@@ -341,7 +338,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             )
             st.plotly_chart(fig_comb, use_container_width=True)
         else:
-            st.info("No se encontraron metas planificadas para generar la comparativa de avance.")
+            st.info("No se encontraron metas planificadas para este proyecto o no hay coincidencias con las familias ejecutadas.")
                 
         st.markdown("#### 📋 Detalle de Mano de Obra")
         if not df_mo_agrupado.empty:
