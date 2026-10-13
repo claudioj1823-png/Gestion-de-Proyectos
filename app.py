@@ -20,7 +20,6 @@ st.markdown("""
 st.title("⚡ Panel de Control Ejecutivo - Gestión de Proyectos EDEESTE")
 st.markdown("---")
 
-# Carga de datos sin caché para evitar que se queden atascados los precios o archivos viejos
 def cargar_datos():
     archivos = {
         'codigos': 'Codigos de proyectos.xlsx',
@@ -106,69 +105,79 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Exacta: Agrupar MO por Actividad -> Cruce Maestro -> Agrupar Materiales por Código SAP
+        # 3. Lógica IDP Exacta: Doble Agregación (MO por Actividad + Materiales por Código SAP)
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
+        df_mo_agrupado = pd.DataFrame()
         
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
-            # Paso A: Agrupar la mano de obra del proyecto por Actividad sumando sus cantidades físicas con total precisión
+            # Paso A: Agrupar la mano de obra del proyecto por Actividad sumando sus cantidades físicas
             col_act_mo = next((c for c in df_mo_proy.columns if 'actividad' in c.lower()), df_mo_proy.columns[0])
             col_cant_mo = next((c for c in df_mo_proy.columns if 'cantidad' in c.lower()), df_mo_proy.columns[4])
             
             df_mo_proy['Actividad_Clean'] = df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
             df_mo_proy['Cantidad_Num'] = pd.to_numeric(df_mo_proy[col_cant_mo], errors='coerce').fillna(0)
             
-            # Agrupación estricta de la mano de obra por actividad (ej. 1POHA-06 sumando 12 en total)
-            df_mo_agrupado = df_mo_proy.groupby('Actividad_Clean')['Cantidad_Num'].sum().reset_index()
-            df_mo_agrupado.rename(columns={'Cantidad_Num': 'Cantidad_Ejecutada_Total'}, inplace=True)
+            df_mo_agrupado = df_mo_proy.groupby('Actividad_Clean', as_index=False)['Cantidad_Num'].sum()
+            df_mo_agrupado.rename(columns={'Actividad_Clean': 'Actividad', 'Cantidad_Num': 'Cantidad Total Ejecutada'}, inplace=True)
             
-            # Paso B: Normalizar actividad en la matriz de contratistas y hacer el cruce
+            dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Total Ejecutada']))
+            
+            # Paso B: Cruzar con el maestro de contratistas ('Actividades con materiales')
             col_act_mat = fuente_mat.columns[0]
             fuente_mat['Actividad_Clean'] = fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
             
-            df_merge_mat = pd.merge(fuente_mat, df_mo_agrupado, on='Actividad_Clean', how='inner')
+            df_filtrado = fuente_mat[fuente_mat['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
             
-            if not df_merge_mat.empty:
-                # La cantidad unitaria del material es la última columna del maestro
-                col_cant_mat = fuente_mat.columns[-1]
-                df_merge_mat["Cantidad_Unitaria"] = pd.to_numeric(df_merge_mat[col_cant_mat], errors="coerce").fillna(0)
+            if not df_filtrado.empty:
+                df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 
-                # Cantidad total del material = Cantidad Unitaria * Cantidad Total Ejecutada de la Actividad
-                df_merge_mat["Cantidad_Total_Material"] = df_merge_mat["Cantidad_Unitaria"] * df_merge_mat["Cantidad_Ejecutada_Total"]
+                # Búsqueda robusta de la columna de cantidad unitaria de material en el maestro
+                col_cant_mat = next((c for c in df_filtrado.columns if 'cant' in c.lower() and c.lower() != 'cant_idp' and c.lower() != 'cantidad'), df_filtrado.columns[-1])
+                
+                df_filtrado["Cantidad_Unitaria"] = pd.to_numeric(df_filtrado[col_cant_mat], errors="coerce").fillna(0)
+                df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria"] * df_filtrado["Cant_IDP"]
                 
                 # Identificar columnas clave en contratistas
-                col_sap_mat = "Codigo SAP" if "Codigo SAP" in df_merge_mat.columns else df_merge_mat.columns[4]
-                desc_mat_col = "Descripción_MAT" if "Descripción_MAT" in df_merge_mat.columns else df_merge_mat.columns[5]
-                und_col = "Unidad" if "Unidad" in df_merge_mat.columns else df_merge_mat.columns[6]
+                col_sap_mat = next((c for c in df_filtrado.columns if "sap" in c.lower() or "codigo" in c.lower()), df_filtrado.columns[4])
+                desc_mat_col = next((c for c in df_filtrado.columns if "descripci" in c.lower() or ("mat" in c.lower() and c != col_sap_mat)), df_filtrado.columns[5])
+                und_col = next((c for c in df_filtrado.columns if "unid" in c.lower()), df_filtrado.columns[6] if len(df_filtrado.columns) > 6 else None)
                 
-                # Normalizar Precios SAP usando exactamente 'Precio Material'
-                col_sap_prec = "Codigo SAP" if "Codigo SAP" in df_sap.columns else df_sap.columns[0]
-                col_precio_final = "Precio Material" if "Precio Material" in df_sap.columns else df_sap.columns[-1]
+                # Normalizar Precios SAP usando estrictamente 'Precio Material'
+                col_sap_prec = next((c for c in df_sap.columns if "sap" in c.lower() or "codigo" in c.lower()), df_sap.columns[0])
+                col_precio_final = next((c for c in df_sap.columns if "precio" in c.lower() or "costo" in c.lower()), df_sap.columns[-1])
                 
                 df_sap_copy = df_sap.copy()
                 df_sap_copy['Clean_SAP'] = pd.to_numeric(df_sap_copy[col_sap_prec], errors='coerce').fillna(0).astype(int).astype(str)
-                df_merge_mat['Clean_SAP'] = pd.to_numeric(df_merge_mat[col_sap_mat], errors='coerce').fillna(0).astype(int).astype(str)
+                df_filtrado['Clean_SAP'] = pd.to_numeric(df_filtrado[col_sap_mat], errors='coerce').fillna(0).astype(int).astype(str)
                 
-                df_merge_sap = pd.merge(df_merge_mat, df_sap_copy, on='Clean_SAP', how='inner')
+                df_merge_sap = pd.merge(df_filtrado, df_sap_copy, on='Clean_SAP', how='inner')
                 df_merge_sap['Precio_Unitario_SAP'] = pd.to_numeric(df_merge_sap[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0)
                 
-                # Paso C: Agrupación final por Código SAP para sumar materiales idénticos de diferentes actividades
-                df_resumen_mat = df_merge_sap.groupby(['Clean_SAP', desc_mat_col, und_col], as_index=False).agg({
+                # Paso C: Agrupar materiales idénticos por su Código SAP
+                cols_agrupar = ['Clean_SAP', desc_mat_col]
+                if und_col and und_col in df_merge_sap.columns:
+                    cols_agrupar.append(und_col)
+                    
+                df_resumen_mat = df_merge_sap.groupby(cols_agrupar, as_index=False).agg({
                     "Cantidad_Total_Material": "sum",
                     "Precio_Unitario_SAP": "first"
                 })
                 
                 df_resumen_mat['Costo_Material'] = df_resumen_mat['Cantidad_Total_Material'] * df_resumen_mat['Precio_Unitario_SAP']
                 
-                df_resumen_mat = df_resumen_mat.rename(columns={
+                renombres = {
                     'Clean_SAP': "Código SAP",
                     desc_mat_col: "Descripción de Material",
-                    und_col: "Unidad",
                     "Cantidad_Total_Material": "Cantidad Total",
                     "Costo_Material": "Costo Total"
-                })
+                }
+                if und_col and und_col in df_resumen_mat.columns:
+                    renombres[und_col] = "Unidad"
+                    
+                df_resumen_mat = df_resumen_mat.rename(columns=renombres)
                 
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
@@ -195,13 +204,13 @@ if menu == "Panel Ejecutivo por Proyecto":
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales (Doble Agrupación)")
+            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales (Agrupado por SAP)")
             if not df_materiales_calculados.empty:
                 st.dataframe(df_materiales_calculados.head(15), use_container_width=True)
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
                 
-        st.markdown("#### 📋 Detalle de Mano de Obra del Proyecto (Agrupado por Actividad)")
+        st.markdown("#### 📋 Mano de Obra Agrupada por Actividad")
         if not df_mo_agrupado.empty:
             st.dataframe(df_mo_agrupado.head(15), use_container_width=True)
         else:
@@ -224,4 +233,4 @@ else:
         'Proyecto': ['Proyecto Redes La Javilla', 'Ciudad Juan Bosch', 'Circuito SPER01', 'Rehabilitación LM3802R']
     })
     st.map(map_data)
-    st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
+    st.caption("Ubicación satelital y puntos de ejecución del proyecto.")                 
