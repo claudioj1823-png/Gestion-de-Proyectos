@@ -106,7 +106,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Definitiva: Respetando unidades reales de origen
+        # 3. Lógica IDP Corregida: Deduplicación estricta por Actividad-SAP y Normalización de Unidades
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -126,7 +126,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             
             dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Total Ejecutada']))
             
-            # B. Identificar columnas clave en contratistas
+            # B. Identificar columnas y preparar maestro
             col_act_mat = next((c for c in fuente_mat.columns if 'actividad' in c.lower()), fuente_mat.columns[0])
             col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower() or 'codigo sap' in c.lower()), fuente_mat.columns[4])
             und_col = next((c for c in fuente_mat.columns if 'unid' in c.lower()), None)
@@ -138,14 +138,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Conservar la unidad original exacta del archivo para respetar diferenciaciones reales (ej. Mts vs Und)
+            # Normalizar unidad de medida (removiendo puntos y espacios para evitar duplicados falsos)
             if und_col:
-                fuente_mat['Unidad_Original'] = fuente_mat[und_col].fillna("").astype(str).str.strip()
+                fuente_mat['Unidad_Clean'] = fuente_mat[und_col].fillna("").astype(str).str.strip().str.replace('.', '', regex=False).str.upper()
             else:
-                fuente_mat['Unidad_Original'] = "Und."
+                fuente_mat['Unidad_Clean'] = "UND"
             
-            # Deduplicación considerando la actividad, el SAP y la unidad específica
-            fuente_mat_clean = fuente_mat.drop_duplicates(subset=['Actividad_Clean', 'Clean_SAP', 'Unidad_Original']).copy()
+            # IMPORTANTE: Deduplicar estrictamente por Actividad y Código SAP (sin contrata ni unidad, para tomar un único coeficiente de 1.05)
+            fuente_mat_clean = fuente_mat.drop_duplicates(subset=['Actividad_Clean', 'Clean_SAP']).copy()
             
             df_filtrado = fuente_mat_clean[fuente_mat_clean['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
             
@@ -167,8 +167,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                 
                 df_merge_sap = pd.merge(df_filtrado, df_sap_limpio, on='Clean_SAP', how='left')
                 
-                # D. Agrupación final por Código SAP y Unidad Original
-                cols_agrupar = ['Clean_SAP', 'Descripcion_Oficial', 'Unidad_Original']
+                # D. Agrupación final consolidada por Código SAP y Unidad Normalizada
+                cols_agrupar = ['Clean_SAP', 'Descripcion_Oficial', 'Unidad_Clean']
                 
                 df_resumen_mat = df_merge_sap.groupby(cols_agrupar, as_index=False).agg({
                     "Cantidad_Total_Material": "sum",
@@ -180,7 +180,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_resumen_mat = df_resumen_mat.rename(columns={
                     'Clean_SAP': "Código SAP",
                     'Descripcion_Oficial': "Descripción de Material",
-                    'Unidad_Original': "Unidad",
+                    'Unidad_Clean': "Unidad",
                     "Cantidad_Total_Material": "Cantidad Total",
                     "Precio_Oficial": "Precio_Unitario_SAP",
                     "Costo_Material": "Costo Total"
