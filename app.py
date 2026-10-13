@@ -40,7 +40,7 @@ def cargar_datos_seguros():
     else:
         dfs['codigos'] = None
 
-    # 2. Actividades con su familia (Usando la hoja específica que descubrimos)
+    # 2. Actividades con su familia
     ruta_fam = 'Actividades con su familia.xlsx' if os.path.exists('Actividades con su familia.xlsx') else 'Actividades con sus familia.xlsx'
     if os.path.exists(ruta_fam):
         try:
@@ -100,10 +100,8 @@ df_metas = datos.get('metas')
 # Mapeo blindado Actividad -> Familia
 dict_familia = {}
 if df_familia is not None and not df_familia.empty:
-    # Buscar por nombre exacto de columna en la hoja 'Mano de Obra con su Familia'
     col_act_f = next((c for c in df_familia.columns if 'actividad' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_familia.columns[0])
     col_fam_f = next((c for c in df_familia.columns if 'familia' in c.lower()), df_familia.columns[2])
-    
     for _, row in df_familia.iterrows():
         act_raw = str(row[col_act_f]).strip().upper()
         fam_raw = str(row[col_fam_f]).strip()
@@ -166,6 +164,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         if df_mo is not None and not df_mo.empty:
             col_proy_mo = next((c for c in df_mo.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_mo.columns[-3])
             col_costo_mo = next((c for c in df_mo.columns if 'costo total' in c.lower() or 'total' in c.lower()), df_mo.columns[5])
+            col_contrata_mo = next((c for c in df_mo.columns if 'contrata' in c.lower()), df_mo.columns[8])
             
             df_mo['Clean_Proy'] = df_mo[col_proy_mo].astype(str).str.strip()
             df_mo_proy = df_mo[df_mo['Clean_Proy'] == cod_clean].copy()
@@ -192,7 +191,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales con control correcto
+        # 3. Procesamiento y Materiales cruzando por Actividad Y Contrata para evitar duplicados
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -202,8 +201,10 @@ if menu == "Panel Ejecutivo por Proyecto":
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
             col_act_mo = next((c for c in df_mo_proy.columns if 'actividad' in c.lower()), df_mo_proy.columns[0])
             col_cant_mo = next((c for c in df_mo_proy.columns if c.lower() == 'cantidad' or 'cant' in c.lower()), df_mo_proy.columns[4])
+            col_contrata_mo = next((c for c in df_mo_proy.columns if 'contrata' in c.lower()), df_mo_proy.columns[8])
             
             df_mo_proy['Actividad_Clean'] = df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+            df_mo_proy['Contrata_Clean'] = df_mo_proy[col_contrata_mo].fillna("").astype(str).str.strip().str.upper()
             df_mo_proy['Cantidad_Num'] = pd.to_numeric(df_mo_proy[col_cant_mo], errors='coerce').fillna(0)
             
             df_mo_proy['Familia_Accion'] = df_mo_proy['Actividad_Clean'].map(dict_familia).fillna("OTRA")
@@ -211,23 +212,29 @@ if menu == "Panel Ejecutivo por Proyecto":
             df_mo_agrupado = df_mo_proy.groupby(['Familia_Accion', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
             df_mo_agrupado.rename(columns={'Familia_Accion': 'Familia / Acción', 'Actividad_Clean': 'Actividad', 'Cantidad_Num': 'Cantidad Ejecutada'}, inplace=True)
             
-            dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Ejecutada']))
+            # Sumar la ejecución por Contrata y Actividad para evitar cruces erróneos
+            df_mo_ejec_contrata = df_mo_proy.groupby(['Contrata_Clean', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
             
             col_act_mat = next((c for c in fuente_mat.columns if 'actividad' in c.lower()), fuente_mat.columns[0])
+            col_contrata_mat = next((c for c in fuente_mat.columns if 'contrata' in c.lower()), fuente_mat.columns[2])
             col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower() or 'codigo sap' in c.lower()), fuente_mat.columns[4])
-            und_col = next((c for c in fuente_mat.columns if 'unid' in c.lower()), None)
             col_cant_mat = next((c for c in fuente_mat.columns if 'cantidad' in c.lower() or 'cant' in c.lower()), fuente_mat.columns[7])
             
             fuente_mat['Actividad_Clean'] = fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
+            fuente_mat['Contrata_Clean'] = fuente_mat[col_contrata_mat].fillna("").astype(str).str.strip().str.upper()
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            fuente_mat_agroup = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].sum()
-            df_filtrado = fuente_mat_agroup[fuente_mat_agroup['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
+            # Cruzar estricto por Contrata y Actividad para respetar el contratista correcto
+            df_merge_mat = pd.merge(
+                fuente_mat,
+                df_mo_ejec_contrata,
+                on=['Contrata_Clean', 'Actividad_Clean'],
+                how='inner'
+            )
             
-            if not df_filtrado.empty:
-                df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
-                df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
+            if not df_merge_mat.empty:
+                df_merge_mat["Cantidad_Total_Material"] = df_merge_mat['Cantidad_Unitaria_Num'] * df_merge_mat['Cantidad_Num']
                 
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
                 col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
@@ -239,7 +246,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_sap_copy['Precio_Oficial'] = pd.to_numeric(df_sap_copy[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
                 
                 df_sap_limpio = df_sap_copy[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
-                df_merge_sap = pd.merge(df_filtrado, df_sap_limpio, on='Clean_SAP', how='left')
+                df_merge_sap = pd.merge(df_merge_mat, df_sap_limpio, on='Clean_SAP', how='left')
                 
                 df_resumen_mat = df_merge_sap.groupby(['Clean_SAP', 'Descripcion_Oficial'], as_index=False).agg({
                     "Cantidad_Total_Material": "sum",
