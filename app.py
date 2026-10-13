@@ -225,13 +225,13 @@ if menu == "Panel Ejecutivo por Proyecto":
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Requerimiento Consolidado de Materiales (Doble Agrupación SAP)")
+            st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_calculados.empty:
                 st.dataframe(df_materiales_calculados.head(15), use_container_width=True)
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
                 
-        st.markdown("#### 📋 Mano de Obra Agrupada por Actividad")
+        st.markdown("#### 📋 Mano de Obra")
         if not df_mo_agrupado.empty:
             st.dataframe(
                 df_mo_agrupado.head(15),
