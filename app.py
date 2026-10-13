@@ -63,13 +63,12 @@ def cargar_datos_seguros():
     else:
         dfs['contratistas'] = None
 
-    # 4. Precios SAP
+    # 4. Precios SAP (FORZADO ESTRICTAMENTE A HOJA 3)
     if os.path.exists('Precios Sap.xlsx'):
         try:
-            xls_s = pd.ExcelFile('Precios Sap.xlsx')
-            sheet_s = 'Hoja3' if 'Hoja3' in xls_s.sheet_names else ('Hoja1' if 'Hoja1' in xls_s.sheet_names else xls_s.sheet_names[0])
-            dfs['sap'] = limpiar_nombre_columnas(pd.read_excel('Precios Sap.xlsx', sheet_name=sheet_s))
-        except Exception:
+            dfs['sap'] = limpiar_nombre_columnas(pd.read_excel('Precios Sap.xlsx', sheet_name='Hoja3'))
+        except Exception as e:
+            st.error(f"Error al leer la Hoja 3 de Precios Sap.xlsx: {e}")
             dfs['sap'] = None
     else:
         dfs['sap'] = None
@@ -190,9 +189,10 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales agrupando por Actividad (independiente de la contrata)
+        # 3. Procesamiento y Materiales utilizando estrictamente la Hoja 3 de Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
+        df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
         
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else None
@@ -219,7 +219,9 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Promediar cantidad unitaria si aparece en varios contratistas para la misma actividad
+            # Filtrar actividades sin código SAP válido (remueve la fila fantasma de ceros)
+            fuente_mat = fuente_mat[~fuente_mat['Clean_SAP'].isin(['', 'NAN', 'NONE', '0'])]
+            
             fuente_mat_clean = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].mean()
             df_filtrado = fuente_mat_clean[fuente_mat_clean['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
             
@@ -227,9 +229,10 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
+                # Columnas oficiales de la Hoja 3 de Precios SAP
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
                 col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-                col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower()), df_sap.columns[-1])
+                col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
                 
                 df_sap_copy = df_sap.copy()
                 df_sap_copy['Clean_SAP'] = df_sap_copy[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
@@ -245,16 +248,21 @@ if menu == "Panel Ejecutivo por Proyecto":
                 })
                 
                 df_resumen_mat['Costo_Material'] = df_resumen_mat['Cantidad_Total_Material'] * df_resumen_mat['Precio_Oficial']
-                df_resumen_mat = df_resumen_mat.rename(columns={
-                    'Clean_SAP': "Código SAP",
-                    'Descripcion_Oficial': "Descripción de Material",
-                    "Cantidad_Total_Material": "Cantidad Total",
-                    "Precio_Oficial": "Precio Unitario SAP",
-                    "Costo_Material": "Costo Total"
-                })
                 
-                costo_materiales_total = df_resumen_mat['Costo Total'].sum()
-                df_materiales_calculados = df_resumen_mat
+                costo_materiales_total = df_resumen_mat['Costo_Material'].sum()
+                df_materiales_calculados = df_resumen_mat.copy()
+                
+                # Versión formateada con formato contable profesional en RD$
+                df_display = df_resumen_mat.copy()
+                df_display['Cantidad Total'] = df_display['Cantidad_Total_Material'].apply(lambda x: f"{x:,.2f}".rstrip('0').rstrip('.') if x % 1 != 0 else f"{int(x):,}")
+                df_display['Precio Unitario SAP'] = df_display['Precio_Oficial'].apply(lambda x: f"RD$ {x:,.2f}")
+                df_display['Costo Total'] = df_display['Costo_Material'].apply(lambda x: f"RD$ {x:,.2f}")
+                df_display = df_display.rename(columns={
+                    'Clean_SAP': "Código SAP",
+                    'Descripcion_Oficial': "Descripción de Material"
+                })[['Código SAP', 'Descripción de Material', 'Cantidad Total', 'Precio Unitario SAP', 'Costo Total']]
+                
+                df_materiales_mostrador = df_display
 
         # 4. Cruce de Metas vs Ejecutado
         df_avance_acciones = pd.DataFrame()
@@ -296,10 +304,10 @@ if menu == "Panel Ejecutivo por Proyecto":
 
         # Tarjetas Métricas Ejecutivas
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Mano de Obra (RD$)", f"{monto_mo:,.2f}")
-        c2.metric("Materiales SAP (RD$)", f"{costo_materiales_total:,.2f}")
-        c3.metric("Costo Estimado Total (RD$)", f"{total_ejecutado:,.2f}")
-        c4.metric("Presupuesto Plan. (RD$)", f"{presupuesto_plan:,.2f}")
+        c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
+        c2.metric("Materiales SAP (RD$)", f"RD$ {costo_materiales_total:,.2f}")
+        c3.metric("Costo Estimado Total (RD$)", f"RD$ {total_ejecutado:,.2f}")
+        c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
         st.markdown("---")
@@ -315,9 +323,9 @@ if menu == "Panel Ejecutivo por Proyecto":
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Materiales Instalados (Calculados)")
-            if not df_materiales_calculados.empty:
-                st.dataframe(df_materiales_calculados.head(15), use_container_width=True)
+            st.markdown("#### 🛠️ Materiales Instalados (Calculados - Hoja 3)")
+            if not df_materiales_mostrador.empty:
+                st.dataframe(df_materiales_mostrador, hide_index=True, use_container_width=True)
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
@@ -334,7 +342,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
                 
-        # Opción A: Detalle de Mano de Obra en Expansor Limpio
+        # Detalle de Mano de Obra en Expansor Limpio
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
                 st.dataframe(df_mo_agrupado, hide_index=True, use_container_width=True)
@@ -344,7 +352,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 elif menu == "Relación Mano de Obra y Materiales":
-    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades")
+    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades (Hoja 3)")
     if df_contratistas is not None and df_sap is not None:
         df_c_mat = df_contratistas.copy()
         col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
@@ -356,7 +364,7 @@ elif menu == "Relación Mano de Obra y Materiales":
         
         col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
         col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower()), df_sap.columns[-1])
+        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
         
         df_sap_c = df_sap.copy()
         df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
