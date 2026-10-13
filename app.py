@@ -100,33 +100,44 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Cruce Directo y Robusto de Materiales (Mano de Obra ➔ Contratistas ➔ Precios SAP)
+        # 3. Cruce Inteligente Agrupado: Sumar la cantidad de ejecuciones por actividad en Mano de Obra ➔ Multiplicar por Contratistas y SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         
         fuente_mat = df_contratistas if (df_contratistas is not None and not df_contratistas.empty) else df_familia
         
         if fuente_mat is not None and not fuente_mat.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
-            # Extraer todas las actividades ejecutadas en la mano de obra de este proyecto
-            acts_mo = df_mo_proy['Actividad'].astype(str).str.strip().unique()
+            # Agrupar la mano de obra del proyecto por 'Actividad' sumando las cantidades ejecutadas (ej. total de postes instalados)
+            col_cant_mo = 'Cantidad' if 'Cantidad' in df_mo_proy.columns else df_mo_proy.columns[4]
+            df_mo_agrupado = df_mo_proy.groupby('Actividad')[col_cant_mo].sum().reset_index()
+            df_mo_agrupado.rename(columns={col_cant_mo: 'Cantidad_Ejecutada_Actividad'}, inplace=True)
             
             col_act_cont = fuente_mat.columns[0] # Columna 'Actividad' en contratistas
-            df_mat_filtrado = fuente_mat[fuente_mat[col_act_cont].astype(str).str.strip().isin(acts_mo)].copy()
+            
+            # Filtrar la tabla maestra de contratistas con las actividades del proyecto
+            df_mat_filtrado = fuente_mat[fuente_mat[col_act_cont].astype(str).str.strip().isin(df_mo_agrupado['Actividad'].astype(str).str.strip())].copy()
             
             if not df_mat_filtrado.empty:
-                # Detectar columnas clave de forma dinámica en la tabla de contratistas y SAP
-                col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'codigo' in c.lower()), 'Codigo SAP')
-                col_cant_mat = fuente_mat.columns[-1] # La cantidad suele ser la última columna
+                # Unir la cantidad ejecutada de la actividad con el maestro de contratistas
+                df_mat_filtrado['Clean_Act'] = df_mat_filtrado[col_act_cont].astype(str).str.strip()
+                df_mo_agrupado['Clean_Act'] = df_mo_agrupado['Actividad'].astype(str).str.strip()
                 
+                df_mat_unido = pd.merge(df_mat_filtrado, df_mo_agrupado[['Clean_Act', 'Cantidad_Ejecutada_Actividad']], on='Clean_Act', how='inner')
+                
+                col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'codigo' in c.lower()), 'Codigo SAP')
+                col_cant_mat = fuente_mat.columns[-1] # Cantidad de material unitario
                 col_sap_prec = df_sap.columns[0]
                 col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower()), df_sap.columns[-1])
                 
                 df_sap['Clean_SAP'] = df_sap[col_sap_prec].astype(str).str.strip()
-                df_mat_filtrado['Clean_SAP'] = df_mat_filtrado[col_sap_mat].astype(str).str.strip()
+                df_mat_unido['Clean_SAP'] = df_mat_unido[col_sap_mat].astype(str).str.strip()
                 
-                # Hacer el merge con los precios SAP
-                df_merge = pd.merge(df_mat_filtrado, df_sap, on='Clean_SAP', how='inner')
-                df_merge['Costo_Material'] = pd.to_numeric(df_merge[col_cant_mat], errors='coerce') * pd.to_numeric(df_merge[col_precio_final], errors='coerce')
+                # Merge con Precios SAP
+                df_merge = pd.merge(df_mat_unido, df_sap, on='Clean_SAP', how='inner')
+                
+                # Cálculo final: (Cantidad de Material Unitario * Cantidad Total Ejecutada de la Actividad) * Precio SAP
+                df_merge['Cantidad_Total_Material'] = pd.to_numeric(df_merge[col_cant_mat], errors='coerce') * pd.to_numeric(df_merge['Cantidad_Ejecutada_Actividad'], errors='coerce')
+                df_merge['Costo_Material'] = df_merge['Cantidad_Total_Material'] * pd.to_numeric(df_merge[col_precio_final], errors='coerce')
                 
                 costo_materiales_total = df_merge['Costo_Material'].sum()
                 df_materiales_calculados = df_merge
@@ -153,9 +164,9 @@ if menu == "Panel Ejecutivo por Proyecto":
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
-            st.markdown("#### 🛠️ Materiales Asociados por Actividad")
+            st.markdown("#### 🛠️ Materiales Asociados por Actividad (Agrupados)")
             if not df_materiales_calculados.empty:
-                cols_show = [c for c in [fuente_mat.columns[0], 'Descripción_MAT', fuente_mat.columns[-1], 'Precio Final', 'Costo_Material'] if c in df_materiales_calculados.columns]
+                cols_show = [c for c in [fuente_mat.columns[0], 'Descripción_MAT', 'Cantidad_Ejecutada_Actividad', fuente_mat.columns[-1], 'Cantidad_Total_Material', 'Precio Final', 'Costo_Material'] if c in df_materiales_calculados.columns]
                 st.dataframe(df_materiales_calculados[cols_show].head(15), use_container_width=True)
             else:
                 st.info("No se encontraron materiales vinculados para las actividades de este proyecto.")
