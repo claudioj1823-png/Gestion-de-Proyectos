@@ -43,7 +43,6 @@ def normalizar_texto(txt):
         clean = clean[:-1]
     return clean
 
-# Carga de datos directa sin caché agresiva para evitar bloqueos
 def cargar_datos():
     archivos = {
         'codigos': 'Codigos de proyectos.xlsx',
@@ -86,16 +85,18 @@ df_contratistas = datos.get('contratistas')
 df_sap = datos.get('sap')
 df_metas = datos.get('metas')
 
-# Mapeo Actividad -> Familia (robusto a mayúsculas)
+# Mapeo robusto Actividad -> Familia (Detectando la columna correcta sin importar mayúsculas)
 dict_familia = {}
 if df_familia is not None and not df_familia.empty:
+    # Buscar columna Actividad y columna Familia considerando variaciones de tildes y mayúsculas
     col_act_f = next((c for c in df_familia.columns if 'actividad' in c.lower()), df_familia.columns[0])
-    col_fam_f = next((c for c in df_familia.columns if 'familia' in c.lower()), df_familia.columns[-1])
+    col_fam_f = next((c for c in df_familia.columns if 'famil' in c.lower()), df_familia.columns[-1])
     
     for _, row in df_familia.iterrows():
         act_raw = str(row[col_act_f]).strip().upper()
         fam_raw = str(row[col_fam_f]).strip()
-        dict_familia[act_raw] = fam_raw
+        if act_raw and fam_raw and fam_raw != "nan":
+            dict_familia[act_raw] = fam_raw
 
 st.sidebar.markdown("### 🎛️ FILTROS EJECUTIVOS")
 anos_disponibles = ["Todos"]
@@ -179,7 +180,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales (Lectura estricta de Precios SAP por posición de columna)
+        # 3. Procesamiento y Materiales
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -218,7 +219,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # Forzar lectura exacta de las columnas del Excel de Precios SAP (A=SAP, B=Desc, E=Precio Final)
                 col_sap_prec = df_sap.columns[0]
                 col_desc_sap = df_sap.columns[1]
                 col_precio_final = df_sap.columns[4] if len(df_sap.columns) > 4 else df_sap.columns[-1]
