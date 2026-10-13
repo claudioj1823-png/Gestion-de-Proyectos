@@ -106,11 +106,10 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Auditada
+        # 3. Lógica IDP Consolidada
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
-        df_detalle_cruce = pd.DataFrame()
         
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
@@ -160,9 +159,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_sap_limpio = df_sap_copy[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
                 
                 df_merge_sap = pd.merge(df_filtrado, df_sap_limpio, on='Clean_SAP', how='left')
-                
-                # Guardar detalle para auditoría si se desea revisar
-                df_detalle_cruce = df_merge_sap[['Actividad_Clean', 'Clean_SAP', 'Cant_IDP', 'Cantidad_Unitaria_Num', 'Cantidad_Total_Material']].copy()
                 
                 # D. Doble Agrupación por Código SAP
                 cols_agrupar = ['Clean_SAP', 'Descripcion_Oficial']
@@ -218,14 +214,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
                 
-        # Sección de control / auditoría para ver de dónde salen los cálculos del material
-        with st.expander("🔍 Auditoría de Cálculo por Actividad (Verificar Conductor 1000165)"):
-            if not df_detalle_cruce.empty:
-                st.dataframe(df_detalle_cruce[df_detalle_cruce['Clean_SAP'] == '1000165'], use_container_width=True)
-                st.caption("Aquí puedes comprobar si hay más de una actividad en el proyecto aportando al mismo código SAP.")
-            else:
-                st.info("No hay datos de cruce disponibles.")
-
         st.markdown("#### 📋 Mano de Obra Agrupada por Actividad")
         if not df_mo_agrupado.empty:
             st.dataframe(
