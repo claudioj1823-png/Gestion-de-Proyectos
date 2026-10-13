@@ -65,6 +65,7 @@ st.sidebar.caption("EDEESTE - Sistema de Control Presupuestario")
 
 df_mo = datos.get('mo')
 df_familia = datos.get('familia')
+df_contratistas = datos.get('contratistas')
 df_sap = datos.get('sap')
 df_metas = datos.get('metas')
 
@@ -75,11 +76,10 @@ if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
         cod_clean = str(codigo_seleccionado).strip()
         
-        # 1. Mano de Obra Ejecutada (Buscando en la columna 'Código Proy.')
+        # 1. Mano de Obra Ejecutada
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
         if df_mo is not None and not df_mo.empty:
-            # Buscar columna de proyecto en MO
             col_proy_mo = 'Código Proy.' if 'Código Proy.' in df_mo.columns else df_mo.columns[-1]
             col_costo_mo = 'Costo Total' if 'Costo Total' in df_mo.columns else df_mo.columns[5]
             
@@ -101,28 +101,31 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Cruce de Actividades con Materiales y Precios SAP
+        # 3. Cruce usando Actividades Contratistas (Materiales, SAP y Cantidades) y Precios SAP
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
-        if df_familia is not None and not df_familia.empty and df_sap is not None and not df_sap.empty:
-            col_act_fam = 'Actividad' if 'Actividad' in df_familia.columns else df_familia.columns[0]
-            col_sap_fam = 'Codigo SAP' if 'Codigo SAP' in df_familia.columns else df_familia.columns[3]
-            col_cant_mat = 'Cantidad Material' if 'Cantidad Material' in df_familia.columns else df_familia.columns[-1]
+        
+         fuente_materiales = df_contratistas if (df_contratistas is not None and not df_contratistas.empty) else df_familia
+        
+        if fuente_materiales is not None and not fuente_materiales.empty and df_sap is not None and not df_sap.empty:
+            col_act_cont = 'Actividad' if 'Actividad' in fuente_materiales.columns else fuente_materiales.columns[0]
+            col_sap_cont = 'Codigo SAP' if 'Codigo SAP' in fuente_materiales.columns else None
+            col_cant_mat = 'Cantidad Material' if 'Cantidad Material' in fuente_materiales.columns else None
             
             col_sap_prec = 'Codigo SAP' if 'Codigo SAP' in df_sap.columns else df_sap.columns[0]
             col_precio_final = 'Precio Final' if 'Precio Final' in df_sap.columns else df_sap.columns[-1]
             
-            if not df_meta_proy.empty:
+            if col_sap_cont and col_cant_mat and not df_meta_proy.empty:
                 col_act_meta = 'Actividad / Partida' if 'Actividad / Partida' in df_meta_proy.columns else df_meta_proy.columns[3]
                 acts_proy = df_meta_proy[col_act_meta].astype(str).str.strip().unique()
                 
-                df_fam_filtrado = df_familia[df_familia[col_act_fam].astype(str).str.strip().isin(acts_proy)].copy()
+                df_cont_filtrado = fuente_materiales[fuente_materiales[col_act_cont].astype(str).str.strip().isin(acts_proy)].copy()
                 
-                if not df_fam_filtrado.empty:
+                if not df_cont_filtrado.empty:
                     df_sap['Clean_SAP'] = df_sap[col_sap_prec].astype(str).str.strip()
-                    df_fam_filtrado['Clean_SAP'] = df_fam_filtrado[col_sap_fam].astype(str).str.strip()
+                    df_cont_filtrado['Clean_SAP'] = df_cont_filtrado[col_sap_cont].astype(str).str.strip()
                     
-                    df_merge = pd.merge(df_fam_filtrado, df_sap, on='Clean_SAP', how='inner')
+                    df_merge = pd.merge(df_cont_filtrado, df_sap, on='Clean_SAP', how='inner')
                     df_merge['Costo_Material'] = pd.to_numeric(df_merge[col_cant_mat], errors='coerce') * pd.to_numeric(df_merge[col_precio_final], errors='coerce')
                     costo_materiales_total = df_merge['Costo_Material'].sum()
                     df_materiales_calculados = df_merge
