@@ -34,7 +34,10 @@ def cargar_datos():
     for clave, ruta in archivos.items():
         if os.path.exists(ruta):
             try:
-                dfs[clave] = pd.read_excel(ruta)
+                df = pd.read_excel(ruta)
+                # Limpiar espacios en los nombres de las columnas
+                df.columns = [str(c).strip() for c in df.columns]
+                dfs[clave] = df
             except Exception as e:
                 dfs[clave] = None
         else:
@@ -50,7 +53,7 @@ df_codigos = datos.get('codigos')
 
 if df_codigos is not None and not df_codigos.empty:
     col_codigo = df_codigos.columns[0]
-    lista_codigos = df_codigos[col_codigo].dropna().astype(str).unique().tolist()
+    lista_codigos = df_codigos[col_codigo].dropna().astype(str).str.strip().unique().tolist()
     codigo_seleccionado = st.sidebar.selectbox("Seleccione Código de Proyecto:", ["Todos"] + lista_codigos)
 else:
     st.sidebar.warning("No se encontró 'Codigos de proyectos.xlsx'")
@@ -61,7 +64,6 @@ menu = st.sidebar.radio("🧭 Vista General", ["Panel Ejecutivo por Proyecto", "
 st.sidebar.markdown("---")
 st.sidebar.caption("EDEESTE - Sistema de Control Presupuestario y Ejecución")
 
-# Cargar DataFrames globales
 df_mo = datos.get('mo')
 df_familia = datos.get('familia')
 df_sap = datos.get('sap')
@@ -74,29 +76,29 @@ if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
         col1, col2, col3, col4 = st.columns(4)
         
-        # 1. Cálculo exacto de Mano de Obra (buscando en la columna 'Código Proy.')
         monto_mo = 0.0
         if df_mo is not None and not df_mo.empty:
-            # Buscar columna que contenga código de proyecto
-            col_proy_mo = [c for c in df_mo.columns if 'código' in c.lower() or 'proy' in c.lower()]
-            if col_proy_mo:
-                df_mo_proy = df_mo[df_mo[col_proy_mo[0]].astype(str).str.strip() == str(codigo_seleccionado).strip()]
-                col_costo = [c for c in df_mo.columns if 'costo total' in c.lower() or 'total' in c.lower()]
-                if col_costo and not df_mo_proy.empty:
-                    monto_mo = pd.to_numeric(df_mo_proy[col_costo[0]], errors='coerce').sum()
+            # Buscar columna de código de proyecto de forma flexible
+            col_proy_mo = next((c for c in df_mo.columns if 'proy' in c.lower() or 'código' in c.lower()), None)
+            col_costo = next((c for c in df_mo.columns if 'costo total' in c.lower() or 'total' in c.lower()), None)
+            
+            if col_proy_mo and col_costo:
+                df_mo[col_proy_mo] = df_mo[col_proy_mo].astype(str).str.strip()
+                df_mo_proy = df_mo[df_mo[col_proy_mo] == str(codigo_seleccionado).strip()]
+                monto_mo = pd.to_numeric(df_mo_proy[col_costo], errors='coerce').sum()
         
-        # 2. Cálculo exacto del Presupuesto Planificado (buscando en 'Codigo de Proyect' y tomando el max o unique)
         presupuesto_plan = 0.0
         if df_metas is not None and not df_metas.empty:
-            col_proy_meta = [c for c in df_metas.columns if 'codigo de proy' in c.lower()]
-            if col_proy_meta:
-                df_meta_proy = df_metas[df_metas[col_proy_meta[0]].astype(str).str.strip() == str(codigo_seleccionado).strip()]
-                col_presupuesto = [c for c in df_metas.columns if 'presupuesto' in c.lower()]
-                if col_presupuesto and not df_meta_proy.empty:
-                    # Tomar el valor único de presupuesto de ese proyecto
-                    val_presupuesto = pd.to_numeric(df_meta_proy[col_presupuesto[0]], errors='coerce').dropna()
-                    if not val_presupuesto.empty:
-                        presupuesto_plan = val_presupuesto.iloc[0]
+            # Buscar columna de código y presupuesto de forma flexible
+            col_proy_meta = next((c for c in df_metas.columns if 'codigo' in c.lower() or 'proy' in c.lower()), None)
+            col_presupuesto = next((c for c in df_metas.columns if 'presupuesto' in c.lower()), None)
+            
+            if col_proy_meta and col_presupuesto:
+                df_metas[col_proy_meta] = df_metas[col_proy_meta].astype(str).str.strip()
+                df_meta_proy = df_metas[df_metas[col_proy_meta] == str(codigo_seleccionado).strip()]
+                val_presupuesto = pd.to_numeric(df_meta_proy[col_presupuesto], errors='coerce').dropna()
+                if not val_presupuesto.empty:
+                    presupuesto_plan = val_presupuesto.iloc[0]
 
         col1.metric("Mano de Obra Ejecutada (RD$)", f"{monto_mo:,.2f}")
         col2.metric("Presupuesto Planificado (RD$)", f"{presupuesto_plan:,.2f}")
@@ -123,10 +125,14 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Metas y Actividades del Proyecto")
             if df_metas is not None:
-                col_proy_meta = [c for c in df_metas.columns if 'codigo de proy' in c.lower()]
+                col_proy_meta = next((c for c in df_metas.columns if 'codigo' in c.lower() or 'proy' in c.lower()), None)
                 if col_proy_meta:
-                    df_meta_proy = df_metas[df_metas[col_proy_meta[0]].astype(str).str.strip() == str(codigo_seleccionado).strip()]
-                    st.dataframe(df_meta_proy[['Actividad / Partida', 'Cantidad Planificada', 'Unidad']], use_container_width=True)
+                    df_meta_proy = df_metas[df_metas[col_proy_meta] == str(codigo_seleccionado).strip()]
+                    cols_mostrar = [c for c in ['Actividad / Partida', 'Cantidad Planificada', 'Unidad'] if c in df_meta_proy.columns]
+                    if cols_mostrar:
+                        st.dataframe(df_meta_proy[cols_mostrar], use_container_width=True)
+                    else:
+                        st.dataframe(df_meta_proy.head(5), use_container_width=True)
             else:
                 st.info("No se encontró información de metas.")
     else:
