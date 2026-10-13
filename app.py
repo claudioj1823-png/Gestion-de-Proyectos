@@ -106,10 +106,11 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Lógica IDP Corregida: Deduplicación estricta por Actividad-SAP y Normalización de Unidades
+        # 3. Lógica IDP Auditada
         costo_materiales_total = 0.0
         df_materiales_calculados = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
+        df_detalle_cruce = pd.DataFrame()
         
         fuente_mat = df_contratistas.copy() if (df_contratistas is not None and not df_contratistas.empty) else (df_familia.copy() if df_familia is not None else None)
         
@@ -126,7 +127,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             
             dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Total Ejecutada']))
             
-            # B. Identificar columnas y preparar maestro
+            # B. Preparar maestro de contratistas (Deduplicado por Actividad y SAP)
             col_act_mat = next((c for c in fuente_mat.columns if 'actividad' in c.lower()), fuente_mat.columns[0])
             col_sap_mat = next((c for c in fuente_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower() or 'codigo sap' in c.lower()), fuente_mat.columns[4])
             und_col = next((c for c in fuente_mat.columns if 'unid' in c.lower()), None)
@@ -138,13 +139,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Normalizar unidad de medida (removiendo puntos y espacios para evitar duplicados falsos)
-            if und_col:
-                fuente_mat['Unidad_Clean'] = fuente_mat[und_col].fillna("").astype(str).str.strip().str.replace('.', '', regex=False).str.upper()
-            else:
-                fuente_mat['Unidad_Clean'] = "UND"
-            
-            # IMPORTANTE: Deduplicar estrictamente por Actividad y Código SAP (sin contrata ni unidad, para tomar un único coeficiente de 1.05)
             fuente_mat_clean = fuente_mat.drop_duplicates(subset=['Actividad_Clean', 'Clean_SAP']).copy()
             
             df_filtrado = fuente_mat_clean[fuente_mat_clean['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
@@ -153,7 +147,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
                 
-                # C. Extraer Descripción y Precios OFICIALES exactos del archivo SAP
+                # C. Extraer Precios y Descripciones Oficiales SAP
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
                 col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
                 col_precio_final = next((c for c in df_sap.columns if 'precio material' in c.lower() or 'precio' in c.lower()), df_sap.columns[-1])
@@ -167,9 +161,14 @@ if menu == "Panel Ejecutivo por Proyecto":
                 
                 df_merge_sap = pd.merge(df_filtrado, df_sap_limpio, on='Clean_SAP', how='left')
                 
-                # D. Agrupación final consolidada por Código SAP y Unidad Normalizada
-                cols_agrupar = ['Clean_SAP', 'Descripcion_Oficial', 'Unidad_Clean']
+                # Guardar detalle para auditoría si se desea revisar
+                df_detalle_cruce = df_merge_sap[['Actividad_Clean', 'Clean_SAP', 'Cant_IDP', 'Cantidad_Unitaria_Num', 'Cantidad_Total_Material']].copy()
                 
+                # D. Doble Agrupación por Código SAP
+                cols_agrupar = ['Clean_SAP', 'Descripcion_Oficial']
+                if und_col and und_col in df_merge_sap.columns:
+                    cols_agrupar.append(und_col)
+                    
                 df_resumen_mat = df_merge_sap.groupby(cols_agrupar, as_index=False).agg({
                     "Cantidad_Total_Material": "sum",
                     "Precio_Oficial": "first"
@@ -177,14 +176,17 @@ if menu == "Panel Ejecutivo por Proyecto":
                 
                 df_resumen_mat['Costo_Material'] = df_resumen_mat['Cantidad_Total_Material'] * df_resumen_mat['Precio_Oficial']
                 
-                df_resumen_mat = df_resumen_mat.rename(columns={
+                renombres = {
                     'Clean_SAP': "Código SAP",
                     'Descripcion_Oficial': "Descripción de Material",
-                    'Unidad_Clean': "Unidad",
                     "Cantidad_Total_Material": "Cantidad Total",
                     "Precio_Oficial": "Precio_Unitario_SAP",
                     "Costo_Material": "Costo Total"
-                })
+                }
+                if und_col and und_col in df_resumen_mat.columns:
+                    renombres[und_col] = "Unidad"
+                    
+                df_resumen_mat = df_resumen_mat.rename(columns=renombres)
                 
                 costo_materiales_total = df_resumen_mat['Costo Total'].sum()
                 df_materiales_calculados = df_resumen_mat
@@ -216,6 +218,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
                 
+        # Sección de control / auditoría para ver de dónde salen los cálculos del material
+        with st.expander("🔍 Auditoría de Cálculo por Actividad (Verificar Conductor 1000165)"):
+            if not df_detalle_cruce.empty:
+                st.dataframe(df_detalle_cruce[df_detalle_cruce['Clean_SAP'] == '1000165'], use_container_width=True)
+                st.caption("Aquí puedes comprobar si hay más de una actividad en el proyecto aportando al mismo código SAP.")
+            else:
+                st.info("No hay datos de cruce disponibles.")
+
         st.markdown("#### 📋 Mano de Obra Agrupada por Actividad")
         if not df_mo_agrupado.empty:
             st.dataframe(
