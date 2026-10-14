@@ -178,7 +178,6 @@ if st.sidebar.button("🔄 RECARGAR DATOS"):
 st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
 
 def mostrar_tabla_html_ejecutiva(df_mostrar):
-    """Genera una tabla HTML pura con el estilo azul oscuro e insignias oficiales (Imagen 14)."""
     html_str = df_mostrar.to_html(index=False, classes='tabla-ejecutiva', escape=False)
     st.markdown(f'<div class="tabla-ejecutiva-container">{html_str}</div>', unsafe_allow_html=True)
 
@@ -381,12 +380,13 @@ if menu == "Panel Ejecutivo por Proyecto":
                 'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
             })
             
-            # PALETA PROFESIONAL/INSTITUCIONAL EDEESTE
+            df_grafico['Texto_Monto'] = df_grafico['Monto (RD$)'].apply(lambda x: f"RD$ {x:,.2f}")
+            
             mapa_colores_ejecutivo = {
-                'Mano de Obra': '#1b365d',           # Azul Marino Oscuro Institucional
-                'Materiales Instalados': '#2b5c8f',   # Azul Acero Ejecutivo
-                'Monto Invertido': '#d97706',         # Ámbar / Dorado Corporativo
-                'Presupuesto Plan.': '#4b5563'        # Gris Grafito
+                'Mano de Obra': '#0d6efd',
+                'Materiales Instalados': '#38bdf8',
+                'Monto Invertido': '#ef4444',
+                'Presupuesto Plan.': '#fca5a5'
             }
             
             fig_bar = px.bar(
@@ -394,11 +394,13 @@ if menu == "Panel Ejecutivo por Proyecto":
                 x='Concepto', 
                 y='Monto (RD$)', 
                 color='Concepto', 
+                text='Texto_Monto',
                 title="Comparativo Financiero del Proyecto",
                 color_discrete_map=mapa_colores_ejecutivo
             )
+            fig_bar.update_traces(textposition='auto')
             fig_bar.update_layout(
-                showlegend=False, 
+                showlegend=True,  # <-- Leyenda restaurada y visible
                 xaxis_title="", 
                 template="plotly_white",
                 margin=dict(l=20, r=20, t=40, b=20)
@@ -408,7 +410,6 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_mostrador.empty:
-                # Mostrar Tabla HTML idéntica a la Imagen 14 (Cabecera Azul Oscuro + Letras Blancas)
                 mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
                 
                 output = io.BytesIO()
@@ -446,7 +447,6 @@ if menu == "Panel Ejecutivo por Proyecto":
 
             df_avance_final = pd.concat([df_disp_avance, fila_total_avance], ignore_index=True)
 
-            # Mostrar Tabla de Avance en HTML azul ejecutivo
             mostrar_tabla_html_ejecutiva(df_avance_final)
             
             df_grafico_acc = df_avance_acciones.copy()
@@ -461,7 +461,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not df_normal.empty:
                 fig_comb.add_trace(go.Bar(
                     x=df_normal['Acción'], y=df_normal['Planificado'], name='Planificado (Und)', 
-                    marker_color='#1b365d', text=df_normal['Text_Plan'], textposition='auto'
+                    marker_color='#0d6efd', text=df_normal['Text_Plan'], textposition='auto'
                 ), secondary_y=False)
                 
                 fig_comb.add_trace(go.Bar(
@@ -473,7 +473,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not df_cond.empty:
                 fig_comb.add_trace(go.Bar(
                     x=df_cond['Acción'], y=df_cond['Planificado'], name='Planificado (Conductor - Metros)', 
-                    marker_color='#4a777a', text=df_cond['Text_Plan'], textposition='auto'
+                    marker_color='#38bdf8', text=df_cond['Text_Plan'], textposition='auto'
                 ), secondary_y=True)
                 
                 fig_comb.add_trace(go.Bar(
