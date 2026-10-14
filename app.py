@@ -13,6 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
+# Estilos CSS globales
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; color: #212529; }
@@ -20,6 +21,46 @@ st.markdown("""
     .stMetric label { color: #6c757d !important; font-weight: 600; font-size: 14px; }
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
+    
+    /* Estilo HTML exacto para tablas ejecutivas EDEESTE (Imagen 14) */
+    .tabla-ejecutiva-container {
+        width: 100%;
+        overflow-x: auto;
+        margin-bottom: 15px;
+        border: 1px solid #d0d7de;
+        border-radius: 4px;
+    }
+    table.tabla-ejecutiva {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 13px;
+        background-color: #ffffff;
+    }
+    table.tabla-ejecutiva thead tr {
+        background-color: #0b2240 !important;
+        color: #ffffff !important;
+        text-align: left;
+    }
+    table.tabla-ejecutiva th {
+        padding: 10px 12px !important;
+        font-weight: 700 !important;
+        color: #ffffff !important;
+        border-right: 1px solid #1a365d;
+        white-space: nowrap;
+    }
+    table.tabla-ejecutiva td {
+        padding: 8px 12px !important;
+        border-bottom: 1px solid #e1e4e8;
+        border-right: 1px solid #e1e4e8;
+        color: #24292e;
+    }
+    table.tabla-ejecutiva tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    table.tabla-ejecutiva tr:hover {
+        background-color: #f1f3f5;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -36,13 +77,11 @@ def limpiar_nombre_columnas(df):
 def cargar_datos_seguros():
     dfs = {}
     
-    # 1. Códigos de proyectos
     if os.path.exists('Codigos de proyectos.xlsx'):
         dfs['codigos'] = limpiar_nombre_columnas(pd.read_excel('Codigos de proyectos.xlsx'))
     else:
         dfs['codigos'] = None
 
-    # 2. Actividades con su familia
     ruta_fam = 'Actividades con su familia.xlsx' if os.path.exists('Actividades con su familia.xlsx') else 'Actividades con sus familia.xlsx'
     if os.path.exists(ruta_fam):
         try:
@@ -54,7 +93,6 @@ def cargar_datos_seguros():
     else:
         dfs['familia'] = None
 
-    # 3. Actividades contratistas
     if os.path.exists('Actividades contratistas.xlsx'):
         try:
             xls_c = pd.ExcelFile('Actividades contratistas.xlsx')
@@ -65,7 +103,6 @@ def cargar_datos_seguros():
     else:
         dfs['contratistas'] = None
 
-    # 4. Precios SAP (FORZADO ESTRICTAMENTE A HOJA 3)
     if os.path.exists('Precios Sap.xlsx'):
         try:
             dfs['sap'] = limpiar_nombre_columnas(pd.read_excel('Precios Sap.xlsx', sheet_name='Hoja3'))
@@ -75,13 +112,11 @@ def cargar_datos_seguros():
     else:
         dfs['sap'] = None
 
-    # 5. Proyectos con sus metas
     if os.path.exists('Proyectos con sus metas.xlsx'):
         dfs['metas'] = limpiar_nombre_columnas(pd.read_excel('Proyectos con sus metas.xlsx', skiprows=1))
     else:
         dfs['metas'] = None
 
-    # 6. Mano de Obra por proyecto
     if os.path.exists('Mano de Obra por proyecto.xlsx'):
         dfs['mo'] = limpiar_nombre_columnas(pd.read_excel('Mano de Obra por proyecto.xlsx'))
     else:
@@ -98,7 +133,6 @@ df_contratistas = datos.get('contratistas')
 df_sap = datos.get('sap')
 df_metas = datos.get('metas')
 
-# Mapeo blindado Actividad -> Familia
 dict_familia = {}
 if df_familia is not None and not df_familia.empty:
     col_act_f = next((c for c in df_familia.columns if 'actividad' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_familia.columns[0])
@@ -143,10 +177,10 @@ if st.sidebar.button("🔄 RECARGAR DATOS"):
 
 st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
 
-# Estilo para cabeceras de tablas (Azul oscuro #0b2240 y texto blanco)
-estilo_tabla_header = [
-    {'selector': 'th', 'props': [('background-color', '#0b2240'), ('color', '#ffffff'), ('font-weight', 'bold'), ('text-align', 'center')]}
-]
+def mostrar_tabla_html_ejecutiva(df_mostrar):
+    """Genera una tabla HTML pura con el estilo azul oscuro e insignias oficiales (Imagen 14)."""
+    html_str = df_mostrar.to_html(index=False, classes='tabla-ejecutiva', escape=False)
+    st.markdown(f'<div class="tabla-ejecutiva-container">{html_str}</div>', unsafe_allow_html=True)
 
 if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
@@ -166,7 +200,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         
         st.markdown(f"<h4 style='color: #212529; margin-bottom: 15px;'>📌 PROYECTO: <b style='color: #0d6efd;'>{nombre_proyecto_str}</b></h4>", unsafe_allow_html=True)
         
-        # 1. Mano de Obra Ejecutada filtrada
+        # 1. Mano de Obra Ejecutada
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
         if df_mo is not None and not df_mo.empty:
@@ -201,7 +235,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales utilizando estrictamente la Hoja 3 de Precios SAP
+        # 3. Procesamiento y Materiales utilizando la Hoja 3
         costo_materiales_total = 0.0
         df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -275,9 +309,9 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo_Material'].sum()
                 
                 df_display = df_resumen_mat.copy()
-                df_display['Cantidad Total'] = df_display['Cantidad_Total_Material']
-                df_display['Precio Unitario SAP'] = df_display['Precio_Oficial']
-                df_display['Costo Total'] = df_display['Costo_Material']
+                df_display['Cantidad Total'] = df_display['Cantidad_Total_Material'].apply(lambda x: f"{x:,.2f}")
+                df_display['Precio Unitario SAP'] = df_display['Precio_Oficial'].apply(lambda x: f"RD$ {x:,.2f}")
+                df_display['Costo Total'] = df_display['Costo_Material'].apply(lambda x: f"RD$ {x:,.2f}")
                 
                 df_display = df_display.rename(columns={
                     'Clean_SAP': "Código SAP",
@@ -319,7 +353,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 
                 df_avance_acciones = df_avance_acciones[['Acción', 'Planificado', 'Ejecutado']]
                 
-                # Cálculo de porcentaje numérico para promediar
                 df_avance_acciones['Num_Avance'] = np.where(
                     df_avance_acciones['Planificado'] > 0,
                     (df_avance_acciones['Ejecutado'] / df_avance_acciones['Planificado']) * 100,
@@ -347,21 +380,36 @@ if menu == "Panel Ejecutivo por Proyecto":
                 'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
                 'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
             })
-            fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto")
+            
+            # PALETA PROFESIONAL/INSTITUCIONAL EDEESTE
+            mapa_colores_ejecutivo = {
+                'Mano de Obra': '#1b365d',           # Azul Marino Oscuro Institucional
+                'Materiales Instalados': '#2b5c8f',   # Azul Acero Ejecutivo
+                'Monto Invertido': '#d97706',         # Ámbar / Dorado Corporativo
+                'Presupuesto Plan.': '#4b5563'        # Gris Grafito
+            }
+            
+            fig_bar = px.bar(
+                df_grafico, 
+                x='Concepto', 
+                y='Monto (RD$)', 
+                color='Concepto', 
+                title="Comparativo Financiero del Proyecto",
+                color_discrete_map=mapa_colores_ejecutivo
+            )
+            fig_bar.update_layout(
+                showlegend=False, 
+                xaxis_title="", 
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=40, b=20)
+            )
             st.plotly_chart(fig_bar, use_container_width=True)
             
         with col_g2:
             st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_mostrador.empty:
-                st.dataframe(
-                    df_materiales_mostrador.style.format({
-                        'Cantidad Total': '{:,.2f}',
-                        'Precio Unitario SAP': 'RD$ {:,.2f}',
-                        'Costo Total': 'RD$ {:,.2f}'
-                    }).set_table_styles(estilo_tabla_header),
-                    hide_index=True,
-                    use_container_width=True
-                )
+                # Mostrar Tabla HTML idéntica a la Imagen 14 (Cabecera Azul Oscuro + Letras Blancas)
+                mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
                 
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -378,7 +426,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Tabla y Gráfico de Avance por Acción (Con Eje Y Secundario para evitar desproporción)
+        # Tabla y Gráfico de Avance por Acción
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             df_disp_avance = pd.DataFrame()
@@ -390,37 +438,30 @@ if menu == "Panel Ejecutivo por Proyecto":
             prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
 
             fila_total_avance = pd.DataFrame({
-                'Acción': ['AVANCE FISICO DEL PROYECTO'],
+                'Acción': ['<b>AVANCE FISICO DEL PROYECTO</b>'],
                 'Planificado': [''],
                 'Ejecutado': [''],
-                '% Avance': [f"{prom_avance_gen:.1f}%"]
+                '% Avance': [f"<b>{prom_avance_gen:.1f}%</b>"]
             })
 
             df_avance_final = pd.concat([df_disp_avance, fila_total_avance], ignore_index=True)
 
-            st.dataframe(
-                df_avance_final.style.set_table_styles(estilo_tabla_header),
-                use_container_width=True,
-                hide_index=True
-            )
+            # Mostrar Tabla de Avance en HTML azul ejecutivo
+            mostrar_tabla_html_ejecutiva(df_avance_final)
             
             df_grafico_acc = df_avance_acciones.copy()
-            
-            # Separamos las acciones de conductor/longitud para enviarlas al eje secundario y mantener valores reales
             df_grafico_acc['Es_Conductor'] = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
             
             df_grafico_acc['Text_Plan'] = df_grafico_acc['Planificado'].apply(lambda x: f"{int(x):,}")
             df_grafico_acc['Text_Ejec'] = df_grafico_acc['Ejecutado'].apply(lambda x: f"{int(x):,}")
 
-            # Creamos figura con doble eje Y (eje secundario)
             fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
             
-            # Datos normales (Eje Y Primario - Izquierdo)
             df_normal = df_grafico_acc[~df_grafico_acc['Es_Conductor']]
             if not df_normal.empty:
                 fig_comb.add_trace(go.Bar(
                     x=df_normal['Acción'], y=df_normal['Planificado'], name='Planificado (Und)', 
-                    marker_color='#1f77b4', text=df_normal['Text_Plan'], textposition='auto'
+                    marker_color='#1b365d', text=df_normal['Text_Plan'], textposition='auto'
                 ), secondary_y=False)
                 
                 fig_comb.add_trace(go.Bar(
@@ -428,23 +469,23 @@ if menu == "Panel Ejecutivo por Proyecto":
                     marker_color='#2ca02c', text=df_normal['Text_Ejec'], textposition='auto'
                 ), secondary_y=False)
 
-            # Datos de Conductor (Eje Y Secundario - Derecho, con su escala real completa)
             df_cond = df_grafico_acc[df_grafico_acc['Es_Conductor']]
             if not df_cond.empty:
                 fig_comb.add_trace(go.Bar(
                     x=df_cond['Acción'], y=df_cond['Planificado'], name='Planificado (Conductor - Metros)', 
-                    marker_color='#aec7e8', text=df_cond['Text_Plan'], textposition='auto'
+                    marker_color='#4a777a', text=df_cond['Text_Plan'], textposition='auto'
                 ), secondary_y=True)
                 
                 fig_comb.add_trace(go.Bar(
                     x=df_cond['Acción'], y=df_cond['Ejecutado'], name='Ejecutado (Conductor - Metros)', 
-                    marker_color='#98df8a', text=df_cond['Text_Ejec'], textposition='auto'
+                    marker_color='#82c91e', text=df_cond['Text_Ejec'], textposition='auto'
                 ), secondary_y=True)
             
             fig_comb.update_layout(
                 title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Escala Dual: Unidades / Conductor)",
                 barmode='group',
-                xaxis_title="Acciones"
+                xaxis_title="Acciones",
+                template="plotly_white"
             )
             fig_comb.update_yaxes(title_text="Magnitud en Unidades (Izquierda)", secondary_y=False)
             fig_comb.update_yaxes(title_text="Magnitud de Conductor en Metros (Derecha)", secondary_y=True)
@@ -453,14 +494,9 @@ if menu == "Panel Ejecutivo por Proyecto":
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
                 
-        # Detalle de Mano de Obra en Expansor Limpio
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
-                st.dataframe(
-                    df_mo_agrupado.style.set_table_styles(estilo_tabla_header),
-                    hide_index=True,
-                    use_container_width=True
-                )
+                mostrar_tabla_html_ejecutiva(df_mo_agrupado)
             else:
                 st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
     else:
@@ -490,10 +526,7 @@ elif menu == "Relación Mano de Obra y Materiales":
         df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
         df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
         
-        st.dataframe(
-            df_matriz_final.style.set_table_styles(estilo_tabla_header),
-            use_container_width=True
-        )
+        mostrar_tabla_html_ejecutiva(df_matriz_final)
     else:
         st.warning("No se encontraron los archivos de contratistas o precios SAP.")
 
