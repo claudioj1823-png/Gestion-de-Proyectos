@@ -360,20 +360,18 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Tabla y Gráfico de Avance por Acción (CON COMAS Y FILA DE AVANCE FISICO DEL PROYECTO)
+        # Tabla y Gráfico de Avance por Acción
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
-            # Creamos una copia para visualización formateada
+            # 1. Tabla intacta con los valores originales (con comas)
             df_disp_avance = pd.DataFrame()
             df_disp_avance['Acción'] = df_avance_acciones['Acción']
             df_disp_avance['Planificado'] = df_avance_acciones['Planificado'].apply(lambda x: f"{int(x):,}")
             df_disp_avance['Ejecutado'] = df_avance_acciones['Ejecutado'].apply(lambda x: f"{int(x):,}")
             df_disp_avance['% Avance'] = df_avance_acciones['% Avance']
 
-            # Calcular el promedio general de avance físico
             prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
 
-            # Fila de resumen: celdas de Planificado y Ejecutado vacías (""), nombre actualizado y solo % en Avance
             fila_total_avance = pd.DataFrame({
                 'Acción': ['AVANCE FISICO DEL PROYECTO'],
                 'Planificado': [''],
@@ -385,10 +383,34 @@ if menu == "Panel Ejecutivo por Proyecto":
 
             st.dataframe(df_avance_final, use_container_width=True, hide_index=True)
             
+            # 2. Gráfico con el Tendido de Conductor dividido entre 1,000 (en km)
+            df_grafico_acc = df_avance_acciones.copy()
+            # Si la acción contiene "conductor" (sin importar mayúsculas), dividimos entre 1000
+            mask_conductor = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
+            
+            df_grafico_acc.loc[mask_conductor, 'Planificado'] = df_grafico_acc.loc[mask_conductor, 'Planificado'] / 1000.0
+            df_grafico_acc.loc[mask_conductor, 'Ejecutado'] = df_grafico_acc.loc[mask_conductor, 'Ejecutado'] / 1000.0
+
             fig_comb = go.Figure()
-            fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Planificado'], name='Planificado', marker_color='#1f77b4'))
-            fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Ejecutado'], name='Ejecutado', marker_color='#2ca02c'))
-            fig_comb.update_layout(title=f"Avance Gráfico por Acción - {nombre_proyecto_str}", barmode='group', xaxis_title="Acciones", yaxis_title="Cantidades")
+            fig_comb.add_trace(go.Bar(
+                x=df_grafico_acc['Acción'], 
+                y=df_grafico_acc['Planificado'], 
+                name='Planificado', 
+                marker_color='#1f77b4'
+            ))
+            fig_comb.add_trace(go.Bar(
+                x=df_grafico_acc['Acción'], 
+                y=df_grafico_acc['Ejecutado'], 
+                name='Ejecutado', 
+                marker_color='#2ca02c'
+            ))
+            
+            fig_comb.update_layout(
+                title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Conductor en km)", 
+                barmode='group', 
+                xaxis_title="Acciones", 
+                yaxis_title="Cantidades (Unidades / Conductor en km)"
+            )
             st.plotly_chart(fig_comb, use_container_width=True)
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
