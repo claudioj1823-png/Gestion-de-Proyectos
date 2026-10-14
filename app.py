@@ -226,7 +226,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             
             if not df_filtrado.empty:
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
-                df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado['Cant_IDP']
+                
+                # REGLA ESPECIAL COCCIA Y CEBALLOS: Para '1VA-MT' y material '1000130', la cantidad total es exactamente igual a la cantidad de MO
+                condicion_especial = (df_filtrado['Actividad_Clean'] == '1VA-MT') & (df_filtrado['Clean_SAP'] == '1000130')
+                df_filtrado["Cantidad_Total_Material"] = np.where(
+                    condicion_especial,
+                    df_filtrado['Cant_IDP'],
+                    df_filtrado['Cantidad_Unitaria_Num'] * df_filtrado['Cant_IDP']
+                )
                 
                 col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap.columns[0])
                 col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
