@@ -193,7 +193,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales utilizando la Hoja 3 de Precios SAP
+        # 3. Procesamiento y Materiales utilizando estrictamente la Hoja 3 de Precios SAP
         costo_materiales_total = 0.0
         df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -221,15 +221,17 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
+            # Limpieza de celdas fantasma o ceros
             fuente_mat = fuente_mat[~fuente_mat['Clean_SAP'].isin(['', 'NAN', 'NONE', '0'])]
             
-            fuente_mat_clean = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].mean()
+            # Agregación por Actividad y Código SAP para evitar coeficientes repetidos
+            fuente_mat_clean = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].first()
             df_filtrado = fuente_mat_clean[fuente_mat_clean['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
             
             if not df_filtrado.empty:
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 
-                # REGLA ESPECIAL COCCIA Y CEBALLOS: Para '1VA-MT' y material '1000130'
+                # REGLA EXACTA COCCIA Y CEBALLOS: Para '1VA-MT' y material '1000130' la cantidad es igual a la MO ejecutada
                 condicion_especial = (df_filtrado['Actividad_Clean'] == '1VA-MT') & (df_filtrado['Clean_SAP'] == '1000130')
                 df_filtrado["Cantidad_Total_Material"] = np.where(
                     condicion_especial,
