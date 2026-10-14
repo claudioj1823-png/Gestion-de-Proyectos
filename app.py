@@ -5,6 +5,7 @@ import os
 import io
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 st.set_page_config(
     page_title="Control de Proyecto - EDEESTE",
@@ -142,7 +143,7 @@ if st.sidebar.button("🔄 RECARGAR DATOS"):
 
 st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
 
-# Estilo reutilizable para cabeceras de tablas (Fondo azul oscuro #0b2240 y texto blanco)
+# Estilo para cabeceras de tablas (Azul oscuro #0b2240 y texto blanco)
 estilo_tabla_header = [
     {'selector': 'th', 'props': [('background-color', '#0b2240'), ('color', '#ffffff'), ('font-weight', 'bold'), ('text-align', 'center')]}
 ]
@@ -169,8 +170,10 @@ if menu == "Panel Ejecutivo por Proyecto":
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
         if df_mo is not None and not df_mo.empty:
-            col_proy_mo = next((c for c in df_mo.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_mo.columns[-3])
-            col_costo_mo = next((c for c in df_mo.columns if 'costo total' in c.lower() or 'total' in c.lower()), df_mo.columns[5])
+            col_proy_mo = next((c for c in df_mo.columns if 'código proyecto' in c.lower() or 'codigo proyecto' in c.lower() or 'proyecto' in c.lower()), df_mo.columns[-2])
+            col_costo_mo = next((c for c in df_mo.columns if c.lower().strip() == 'costo total'), None)
+            if not col_costo_mo:
+                col_costo_mo = next((c for c in df_mo.columns if 'costo total' in c.lower()), df_mo.columns[5])
             
             df_mo_proy = df_mo[df_mo[col_proy_mo].astype(str).str.strip() == cod_clean].copy()
             
@@ -181,7 +184,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                     meses_dict = {"Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12}
                     df_mo_proy = df_mo_proy[df_mo_proy['Fecha_Parsed'].dt.month == meses_dict.get(mes_sel, 0)]
             
-            monto_mo = pd.to_numeric(df_mo_proy[col_costo_mo], errors='coerce').sum()
+            serie_costos = df_mo_proy[col_costo_mo].astype(str).str.replace('$', '', regex=False).str.replace(',', '', regex=False).str.strip()
+            monto_mo = pd.to_numeric(serie_costos, errors='coerce').sum()
 
         # 2. Presupuesto Planificado
         presupuesto_plan = 0.0
@@ -201,18 +205,27 @@ if menu == "Panel Ejecutivo por Proyecto":
         costo_materiales_total = 0.0
         df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
+        df_mo_fisico = pd.DataFrame()
         
         if df_contratistas is not None and not df_contratistas.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
             fuente_mat = df_contratistas.copy()
-            col_act_mo = next((c for c in df_mo_proy.columns if 'actividad' in c.lower()), df_mo_proy.columns[0])
-            col_cant_mo = next((c for c in df_mo_proy.columns if c.lower() == 'cantidad' or 'cant' in c.lower()), df_mo_proy.columns[4])
+            
+            col_act_mo = next((c for c in df_mo_proy.columns if c.lower().strip() == 'código' or 'actividad' in c.lower() or 'código' in c.lower()), df_mo_proy.columns[0])
+            col_cant_mo = next((c for c in df_mo_proy.columns if c.lower().strip() == 'cantidad' or 'cant' in c.lower()), df_mo_proy.columns[4])
+            col_unds_mo = next((c for c in df_mo_proy.columns if c.lower().strip() == 'unds.' or 'und' in c.lower() or 'unidad' in c.lower()), None)
             
             df_mo_proy = df_mo_proy.copy()
             df_mo_proy['Actividad_Clean'] = df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
             df_mo_proy['Cantidad_Num'] = pd.to_numeric(df_mo_proy[col_cant_mo], errors='coerce').fillna(0)
             df_mo_proy['Familia_Accion'] = df_mo_proy['Actividad_Clean'].map(dict_familia).fillna("OTRA")
             
-            df_mo_agrupado = df_mo_proy.groupby(['Familia_Accion', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
+            if col_unds_mo:
+                df_mo_proy['Unds_Clean'] = df_mo_proy[col_unds_mo].fillna("").astype(str).str.strip().str.upper()
+                df_mo_fisico = df_mo_proy[~df_mo_proy['Unds_Clean'].str.contains('HORA|HR')].copy()
+            else:
+                df_mo_fisico = df_mo_proy[~df_mo_proy['Actividad_Clean'].str.startswith(('HNBR', 'DFAC'))].copy()
+
+            df_mo_agrupado = df_mo_fisico.groupby(['Familia_Accion', 'Actividad_Clean'], as_index=False)['Cantidad_Num'].sum()
             df_mo_agrupado.rename(columns={'Familia_Accion': 'Familia / Acción', 'Actividad_Clean': 'Actividad', 'Cantidad_Num': 'Cantidad Ejecutada'}, inplace=True)
             
             dict_cant_mo = dict(zip(df_mo_agrupado['Actividad'], df_mo_agrupado['Cantidad Ejecutada']))
@@ -289,10 +302,10 @@ if menu == "Panel Ejecutivo por Proyecto":
                 df_meta_proy_filt['Acción_Key'] = df_meta_proy_filt['Acción'].str.upper().str.strip()
                 df_meta_proy_filt['Planificado'] = pd.to_numeric(df_meta_proy_filt[col_cant_plan], errors='coerce').fillna(0)
                 
-                if not df_mo_proy.empty:
-                    df_mo_proy_copy = df_mo_proy.copy()
-                    df_mo_proy_copy['Familia_Key'] = df_mo_proy_copy['Familia_Accion'].str.upper().str.strip()
-                    df_ejec_fam = df_mo_proy_copy.groupby('Familia_Key', as_index=False)['Cantidad_Num'].sum()
+                if not df_mo_fisico.empty:
+                    df_mo_fisico_copy = df_mo_fisico.copy()
+                    df_mo_fisico_copy['Familia_Key'] = df_mo_fisico_copy['Familia_Accion'].str.upper().str.strip()
+                    df_ejec_fam = df_mo_fisico_copy.groupby('Familia_Key', as_index=False)['Cantidad_Num'].sum()
                     df_ejec_fam.rename(columns={'Familia_Key': 'Acción_Key', 'Cantidad_Num': 'Ejecutado'}, inplace=True)
                 else:
                     df_ejec_fam = pd.DataFrame(columns=['Acción_Key', 'Ejecutado'])
@@ -340,7 +353,6 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_mostrador.empty:
-                # Aplicando Styler de Pandas para cabecera azul y letras blancas
                 st.dataframe(
                     df_materiales_mostrador.style.format({
                         'Cantidad Total': '{:,.2f}',
@@ -366,7 +378,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Tabla y Gráfico de Avance por Acción
+        # Tabla y Gráfico de Avance por Acción (Con Eje Y Secundario para evitar desproporción)
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             df_disp_avance = pd.DataFrame()
@@ -386,7 +398,6 @@ if menu == "Panel Ejecutivo por Proyecto":
 
             df_avance_final = pd.concat([df_disp_avance, fila_total_avance], ignore_index=True)
 
-            # Aplicando Styler de Pandas para cabecera azul y letras blancas
             st.dataframe(
                 df_avance_final.style.set_table_styles(estilo_tabla_header),
                 use_container_width=True,
@@ -394,48 +405,50 @@ if menu == "Panel Ejecutivo por Proyecto":
             )
             
             df_grafico_acc = df_avance_acciones.copy()
-            mask_conductor = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
             
-            df_grafico_acc['Plan_Plot'] = np.where(mask_conductor, df_grafico_acc['Planificado'] / 1000.0, df_grafico_acc['Planificado'])
-            df_grafico_acc['Ejec_Plot'] = np.where(mask_conductor, df_grafico_acc['Ejecutado'] / 1000.0, df_grafico_acc['Ejecutado'])
+            # Separamos las acciones de conductor/longitud para enviarlas al eje secundario y mantener valores reales
+            df_grafico_acc['Es_Conductor'] = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
+            
+            df_grafico_acc['Text_Plan'] = df_grafico_acc['Planificado'].apply(lambda x: f"{int(x):,}")
+            df_grafico_acc['Text_Ejec'] = df_grafico_acc['Ejecutado'].apply(lambda x: f"{int(x):,}")
 
-            df_grafico_acc['Text_Plan'] = np.where(
-                mask_conductor, 
-                df_grafico_acc['Plan_Plot'].apply(lambda x: f"{x:.1f} km"), 
-                df_grafico_acc['Planificado'].apply(lambda x: f"{int(x):,} und")
-            )
-            df_grafico_acc['Text_Ejec'] = np.where(
-                mask_conductor, 
-                df_grafico_acc['Ejec_Plot'].apply(lambda x: f"{x:.1f} km"), 
-                df_grafico_acc['Ejecutado'].apply(lambda x: f"{int(x):,} und")
-            )
+            # Creamos figura con doble eje Y (eje secundario)
+            fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Datos normales (Eje Y Primario - Izquierdo)
+            df_normal = df_grafico_acc[~df_grafico_acc['Es_Conductor']]
+            if not df_normal.empty:
+                fig_comb.add_trace(go.Bar(
+                    x=df_normal['Acción'], y=df_normal['Planificado'], name='Planificado (Und)', 
+                    marker_color='#1f77b4', text=df_normal['Text_Plan'], textposition='auto'
+                ), secondary_y=False)
+                
+                fig_comb.add_trace(go.Bar(
+                    x=df_normal['Acción'], y=df_normal['Ejecutado'], name='Ejecutado (Und)', 
+                    marker_color='#2ca02c', text=df_normal['Text_Ejec'], textposition='auto'
+                ), secondary_y=False)
 
-            fig_comb = go.Figure()
-            
-            fig_comb.add_trace(go.Bar(
-                x=df_grafico_acc['Acción'], 
-                y=df_grafico_acc['Plan_Plot'], 
-                name='Planificado', 
-                marker_color='#1f77b4',
-                text=df_grafico_acc['Text_Plan'],
-                textposition='auto'
-            ))
-            
-            fig_comb.add_trace(go.Bar(
-                x=df_grafico_acc['Acción'], 
-                y=df_grafico_acc['Ejec_Plot'], 
-                name='Ejecutado', 
-                marker_color='#2ca02c',
-                text=df_grafico_acc['Text_Ejec'],
-                textposition='auto'
-            ))
+            # Datos de Conductor (Eje Y Secundario - Derecho, con su escala real completa)
+            df_cond = df_grafico_acc[df_grafico_acc['Es_Conductor']]
+            if not df_cond.empty:
+                fig_comb.add_trace(go.Bar(
+                    x=df_cond['Acción'], y=df_cond['Planificado'], name='Planificado (Conductor - Metros)', 
+                    marker_color='#aec7e8', text=df_cond['Text_Plan'], textposition='auto'
+                ), secondary_y=True)
+                
+                fig_comb.add_trace(go.Bar(
+                    x=df_cond['Acción'], y=df_cond['Ejecutado'], name='Ejecutado (Conductor - Metros)', 
+                    marker_color='#98df8a', text=df_cond['Text_Ejec'], textposition='auto'
+                ), secondary_y=True)
             
             fig_comb.update_layout(
-                title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Armados en Und / Conductor en Km)", 
-                barmode='group', 
-                xaxis_title="Acciones", 
-                yaxis_title="Magnitud (Und / Km)"
+                title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Escala Dual: Unidades / Conductor)",
+                barmode='group',
+                xaxis_title="Acciones"
             )
+            fig_comb.update_yaxes(title_text="Magnitud en Unidades (Izquierda)", secondary_y=False)
+            fig_comb.update_yaxes(title_text="Magnitud de Conductor en Metros (Derecha)", secondary_y=True)
+
             st.plotly_chart(fig_comb, use_container_width=True)
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
@@ -443,7 +456,6 @@ if menu == "Panel Ejecutivo por Proyecto":
         # Detalle de Mano de Obra en Expansor Limpio
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
-                # Aplicando Styler de Pandas también aquí
                 st.dataframe(
                     df_mo_agrupado.style.set_table_styles(estilo_tabla_header),
                     hide_index=True,
