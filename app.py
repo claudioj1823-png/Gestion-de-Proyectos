@@ -361,7 +361,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Tabla y Gráfico de Avance por Acción (CON COMAS Y FILA DE PROMEDIO ABAJO)
+        # Tabla y Gráfico de Avance por Acción (CON COMAS Y FILA DE AVANCE FISICO DEL PROYECTO)
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             # Creamos una copia para visualización formateada
@@ -371,16 +371,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             df_disp_avance['Ejecutado'] = df_avance_acciones['Ejecutado'].apply(lambda x: f"{int(x):,}")
             df_disp_avance['% Avance'] = df_avance_acciones['% Avance']
 
-            # Calcular totales y promedio general para la fila inferior
-            tot_plan_val = df_avance_acciones['Planificado'].sum()
-            tot_ejec_val = df_avance_acciones['Ejecutado'].sum()
+            # Calcular el promedio general de avance físico
             prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
 
-            # Fila de totales y promedio
+            # Fila de resumen: celdas de Planificado y Ejecutado vacías (""), nombre actualizado y solo % en Avance
             fila_total_avance = pd.DataFrame({
-                'Acción': ['PROMEDIO / TOTAL GENERAL'],
-                'Planificado': [f"{int(tot_plan_val):,}"],
-                'Ejecutado': [f"{int(tot_ejec_val):,}"],
+                'Acción': ['AVANCE FISICO DEL PROYECTO'],
+                'Planificado': [''],
+                'Ejecutado': [''],
                 '% Avance': [f"{prom_avance_gen:.1f}%"]
             })
 
