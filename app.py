@@ -272,4 +272,148 @@ if menu == "Panel Ejecutivo por Proyecto":
 
         # 4. Cruce de Metas vs Ejecutado
         df_avance_acciones = pd.DataFrame()
-        if df_metas is not None and not df_
+        if df_metas is not None and not df_metas.empty:
+            col_proy_m = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
+            df_metas_copy2 = df_metas.copy()
+            df_metas_copy2['Clean_P_Meta'] = df_metas_copy2[col_proy_m].astype(str).str.strip()
+            df_meta_proy_filt = df_metas_copy2[df_metas_copy2['Clean_P_Meta'] == cod_clean].copy()
+            
+            if not df_meta_proy_filt.empty:
+                col_accion_meta = next((c for c in df_meta_proy_filt.columns if 'accion' in c.lower() or 'actividad' in c.lower()), df_meta_proy_filt.columns[3])
+                col_cant_plan = next((c for c in df_meta_proy_filt.columns if 'cantidad' in c.lower() or 'planifica' in c.lower()), df_meta_proy_filt.columns[4])
+                
+                df_meta_proy_filt['Acción'] = df_meta_proy_filt[col_accion_meta].fillna("").astype(str).str.strip()
+                df_meta_proy_filt['Acción_Key'] = df_meta_proy_filt['Acción'].str.upper().str.strip()
+                df_meta_proy_filt['Planificado'] = pd.to_numeric(df_meta_proy_filt[col_cant_plan], errors='coerce').fillna(0)
+                
+                if not df_mo_proy.empty:
+                    df_mo_proy_copy = df_mo_proy.copy()
+                    df_mo_proy_copy['Familia_Key'] = df_mo_proy_copy['Familia_Accion'].str.upper().str.strip()
+                    df_ejec_fam = df_mo_proy_copy.groupby('Familia_Key', as_index=False)['Cantidad_Num'].sum()
+                    df_ejec_fam.rename(columns={'Familia_Key': 'Acción_Key', 'Cantidad_Num': 'Ejecutado'}, inplace=True)
+                else:
+                    df_ejec_fam = pd.DataFrame(columns=['Acción_Key', 'Ejecutado'])
+                
+                df_avance_acciones = pd.merge(
+                    df_meta_proy_filt[['Acción', 'Acción_Key', 'Planificado']],
+                    df_ejec_fam[['Acción_Key', 'Ejecutado']],
+                    on='Acción_Key',
+                    how='left'
+                ).fillna(0)
+                
+                df_avance_acciones = df_avance_acciones[['Acción', 'Planificado', 'Ejecutado']]
+                df_avance_acciones['% Avance'] = df_avance_acciones.apply(
+                    lambda r: f"{(r['Ejecutado'] / r['Planificado'] * 100):.1f}%" if r['Planificado'] > 0 else "0.0%",
+                    axis=1
+                )
+
+        total_ejecutado = monto_mo + costo_materiales_total
+        porcentaje_ejecutado = (total_ejecutado / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
+
+        # Tarjetas Métricas Ejecutivas
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
+        c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
+        c3.metric("Monto Invertido en el Proyecto (RD$)", f"RD$ {total_ejecutado:,.2f}")
+        c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
+        c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
+
+        st.markdown("---")
+        st.markdown("### 📊 Desglose Financiero y Operativo")
+        
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            df_grafico = pd.DataFrame({
+                'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
+                'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
+            })
+            fig_bar = px.bar(df_grafico, x='Concepto', y='Monto (RD$)', color='Concepto', title="Comparativo Financiero del Proyecto")
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+        with col_g2:
+            st.markdown("#### 🛠️ Materiales Instalados")
+            if not df_materiales_mostrador.empty:
+                st.dataframe(
+                    df_materiales_mostrador.style.format({
+                        'Cantidad Total': '{:,.2f}',
+                        'Precio Unitario SAP': 'RD$ {:,.2f}',
+                        'Costo Total': 'RD$ {:,.2f}'
+                    }),
+                    hide_index=True,
+                    use_container_width=True
+                )
+                
+                # --- BOTÓN DE DESCARGA DIRECTA EN EXCEL REAL (.XLSX) ---
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
+                processed_data = output.getvalue()
+                
+                st.download_button(
+                    label="📥 Descargar Materiales en Excel Real (.xlsx)",
+                    data=processed_data,
+                    file_name=f"Materiales_Instalados_{cod_clean}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.info("No se encontraron materiales vinculados para este proyecto.")
+
+        # Tabla y Gráfico de Avance por Acción
+        st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
+        if not df_avance_acciones.empty:
+            st.dataframe(df_avance_acciones[['Acción', 'Planificado', 'Ejecutado', '% Avance']], use_container_width=True, hide_index=True)
+            
+            fig_comb = go.Figure()
+            fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Planificado'], name='Planificado', marker_color='#1f77b4'))
+            fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Ejecutado'], name='Ejecutado', marker_color='#2ca02c'))
+            fig_comb.update_layout(title=f"Avance Gráfico por Acción - {nombre_proyecto_str}", barmode='group', xaxis_title="Acciones", yaxis_title="Cantidades")
+            st.plotly_chart(fig_comb, use_container_width=True)
+        else:
+            st.info("No se encontraron metas planificadas para este proyecto.")
+                
+        # Detalle de Mano de Obra en Expansor Limpio
+        with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
+            if not df_mo_agrupado.empty:
+                st.dataframe(df_mo_agrupado, hide_index=True, use_container_width=True)
+            else:
+                st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
+    else:
+        st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
+
+elif menu == "Relación Mano de Obra y Materiales":
+    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades (Hoja 3)")
+    if df_contratistas is not None and df_sap is not None:
+        df_c_mat = df_contratistas.copy()
+        col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
+        col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
+        
+        df_c_mat['Clean_Act'] = df_c_mat[col_act].fillna("").astype(str).str.strip().str.upper()
+        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
+        df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+        
+        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
+        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
+        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
+        
+        df_sap_c = df_sap.copy()
+        df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+        df_sap_c['Descripcion_Oficial'] = df_sap_c[col_desc_sap].fillna("").astype(str)
+        df_sap_c['Precio_Oficial'] = pd.to_numeric(df_sap_c[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
+        
+        df_sap_limpio = df_sap_c[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
+        df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
+        df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
+        
+        st.dataframe(df_matriz_final, use_container_width=True)
+    else:
+        st.warning("No se encontraron los archivos de contratistas o precios SAP.")
+
+else:
+    st.subheader("🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE")
+    map_data = pd.DataFrame({
+        'lat': [18.4861, 18.5123, 18.4500, 18.5500],
+        'lon': [-69.8500, -69.8000, -69.6500, -69.7800],
+        'Proyecto': ['Proyecto Redes La Javilla', 'Ciudad Juan Bosch', 'Circuito SPER01', 'Rehabilitación LM3802R']
+    })
+    st.map(map_data)
+    st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
