@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="Sistema de Gestión de Proyectos - EDEESTE",
+    page_title="Control de Proyectos - EDEESTE",
     page_icon="⚡",
     layout="wide"
 )
