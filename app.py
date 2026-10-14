@@ -19,6 +19,13 @@ st.markdown("""
     .stMetric label { color: #6c757d !important; font-weight: 600; font-size: 14px; }
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
+    
+    /* Estilo ejecutivo para las cabeceras de todas las tablas en Streamlit (Azul oscuro y letras blancas) */
+    thead tr th {
+        background-color: #0b2240 !important;
+        color: #ffffff !important;
+        font-weight: bold !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -363,7 +370,6 @@ if menu == "Panel Ejecutivo por Proyecto":
         # Tabla y Gráfico de Avance por Acción
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
-            # 1. Tabla intacta con los valores originales (con comas)
             df_disp_avance = pd.DataFrame()
             df_disp_avance['Acción'] = df_avance_acciones['Acción']
             df_disp_avance['Planificado'] = df_avance_acciones['Planificado'].apply(lambda x: f"{int(x):,}")
@@ -383,33 +389,48 @@ if menu == "Panel Ejecutivo por Proyecto":
 
             st.dataframe(df_avance_final, use_container_width=True, hide_index=True)
             
-            # 2. Gráfico con el Tendido de Conductor dividido entre 1,000 (en km)
             df_grafico_acc = df_avance_acciones.copy()
-            # Si la acción contiene "conductor" (sin importar mayúsculas), dividimos entre 1000
             mask_conductor = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
             
-            df_grafico_acc.loc[mask_conductor, 'Planificado'] = df_grafico_acc.loc[mask_conductor, 'Planificado'] / 1000.0
-            df_grafico_acc.loc[mask_conductor, 'Ejecutado'] = df_grafico_acc.loc[mask_conductor, 'Ejecutado'] / 1000.0
+            df_grafico_acc['Plan_Plot'] = np.where(mask_conductor, df_grafico_acc['Planificado'] / 1000.0, df_grafico_acc['Planificado'])
+            df_grafico_acc['Ejec_Plot'] = np.where(mask_conductor, df_grafico_acc['Ejecutado'] / 1000.0, df_grafico_acc['Ejecutado'])
+
+            df_grafico_acc['Text_Plan'] = np.where(
+                mask_conductor, 
+                df_grafico_acc['Plan_Plot'].apply(lambda x: f"{x:.1f} km"), 
+                df_grafico_acc['Planificado'].apply(lambda x: f"{int(x):,} und")
+            )
+            df_grafico_acc['Text_Ejec'] = np.where(
+                mask_conductor, 
+                df_grafico_acc['Ejec_Plot'].apply(lambda x: f"{x:.1f} km"), 
+                df_grafico_acc['Ejecutado'].apply(lambda x: f"{int(x):,} und")
+            )
 
             fig_comb = go.Figure()
+            
             fig_comb.add_trace(go.Bar(
                 x=df_grafico_acc['Acción'], 
-                y=df_grafico_acc['Planificado'], 
+                y=df_grafico_acc['Plan_Plot'], 
                 name='Planificado', 
-                marker_color='#1f77b4'
+                marker_color='#1f77b4',
+                text=df_grafico_acc['Text_Plan'],
+                textposition='auto'
             ))
+            
             fig_comb.add_trace(go.Bar(
                 x=df_grafico_acc['Acción'], 
-                y=df_grafico_acc['Ejecutado'], 
+                y=df_grafico_acc['Ejec_Plot'], 
                 name='Ejecutado', 
-                marker_color='#2ca02c'
+                marker_color='#2ca02c',
+                text=df_grafico_acc['Text_Ejec'],
+                textposition='auto'
             ))
             
             fig_comb.update_layout(
-                title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Conductor en km)", 
+                title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Armados en Und / Conductor en Km)", 
                 barmode='group', 
                 xaxis_title="Acciones", 
-                yaxis_title="Cantidades (Unidades / Conductor en km)"
+                yaxis_title="Magnitud (Und / Km)"
             )
             st.plotly_chart(fig_comb, use_container_width=True)
         else:
