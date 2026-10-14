@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="Control de Proyectos - EDEESTE",
+    page_title="Control de Proyecto - EDEESTE",
     page_icon="⚡",
     layout="wide"
 )
@@ -22,8 +22,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("## ⚡ EDEESTE • Sistema de Gestión de Proyectos")
-st.markdown("<h4 style='color: #6c757d; font-weight: 500;'>GERENCIA EJECUCIÓN DE PROYECTOS • PANEL EJECUTIVO</h4>", unsafe_allow_html=True)
+st.markdown("## ⚡ EDEESTE • Control de Proyecto")
 st.markdown("---")
 
 def limpiar_nombre_columnas(df):
