@@ -22,13 +22,14 @@ st.markdown("""
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
     
-    /* Estilo HTML exacto para tablas ejecutivas EDEESTE (Imagen 14) */
+    /* Estilo HTML exacto para tablas ejecutivas EDEESTE (Ocupando ancho completo limpio) */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
         margin-bottom: 15px;
         border: 1px solid #d0d7de;
-        border-radius: 4px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     table.tabla-ejecutiva {
         width: 100%;
@@ -43,14 +44,14 @@ st.markdown("""
         text-align: left;
     }
     table.tabla-ejecutiva th {
-        padding: 10px 12px !important;
+        padding: 11px 14px !important;
         font-weight: 700 !important;
         color: #ffffff !important;
         border-right: 1px solid #1a365d;
         white-space: nowrap;
     }
     table.tabla-ejecutiva td {
-        padding: 8px 12px !important;
+        padding: 9px 14px !important;
         border-bottom: 1px solid #e1e4e8;
         border-right: 1px solid #e1e4e8;
         color: #24292e;
@@ -373,59 +374,64 @@ if menu == "Panel Ejecutivo por Proyecto":
         st.markdown("---")
         st.markdown("### 📊 Desglose Financiero y Operativo")
         
-        col_g1, col_g2 = st.columns(2)
-        with col_g1:
-            df_grafico = pd.DataFrame({
-                'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
-                'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
-            })
+        # 1. GRÁFICO FINANCIERO A ANCHO COMPLETO (Con paleta corporativa seria y profesional EDEESTE)
+        df_grafico = pd.DataFrame({
+            'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
+            'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
+        })
+        
+        df_grafico['Texto_Monto'] = df_grafico['Monto (RD$)'].apply(lambda x: f"RD$ {x:,.2f}")
+        
+        # Paleta ejecutiva sobria y formal (Azul marino, Azul acero, Ámbar corporativo, Gris grafito)
+        mapa_colores_ejecutivo = {
+            'Mano de Obra': '#1b365d',           # Azul Marino Oscuro Institucional
+            'Materiales Instalados': '#2b5c8f',   # Azul Acero
+            'Monto Invertido': '#d97706',         # Ámbar / Dorado Corporativo
+            'Presupuesto Plan.': '#4b5563'        # Gris Grafito Plomo
+        }
+        
+        fig_bar = px.bar(
+            df_grafico, 
+            x='Concepto', 
+            y='Monto (RD$)', 
+            color='Concepto', 
+            text='Texto_Monto',
+            title="Comparativo Financiero del Proyecto",
+            color_discrete_map=mapa_colores_ejecutivo
+        )
+        fig_bar.update_traces(textposition='auto')
+        fig_bar.update_layout(
+            showlegend=True, 
+            xaxis_title="", 
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=40, b=20),
+            height=420
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
             
-            df_grafico['Texto_Monto'] = df_grafico['Monto (RD$)'].apply(lambda x: f"RD$ {x:,.2f}")
+        st.markdown("---")
+        
+        # 2. TABLA DE MATERIALES INSTALADOS A ANCHO COMPLETO (Sin espacios en blanco molestos a la izquierda)
+        st.markdown("#### 🛠️ Materiales Instalados (Detalle SAP)")
+        if not df_materiales_mostrador.empty:
+            mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
             
-            mapa_colores_ejecutivo = {
-                'Mano de Obra': '#0d6efd',
-                'Materiales Instalados': '#38bdf8',
-                'Monto Invertido': '#ef4444',
-                'Presupuesto Plan.': '#fca5a5'
-            }
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
             
-            fig_bar = px.bar(
-                df_grafico, 
-                x='Concepto', 
-                y='Monto (RD$)', 
-                color='Concepto', 
-                text='Texto_Monto',
-                title="Comparativo Financiero del Proyecto",
-                color_discrete_map=mapa_colores_ejecutivo
+            excel_data = output.getvalue()
+            
+            st.download_button(
+                label="📥 Descargar Materiales en Excel Real (.xlsx)",
+                data=excel_data,
+                file_name=f"Materiales_Instalados_{cod_clean}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-            fig_bar.update_traces(textposition='auto')
-            fig_bar.update_layout(
-                showlegend=True,  # <-- Leyenda restaurada y visible
-                xaxis_title="", 
-                template="plotly_white",
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-            
-        with col_g2:
-            st.markdown("#### 🛠️ Materiales Instalados")
-            if not df_materiales_mostrador.empty:
-                mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
-                
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
-                
-                excel_data = output.getvalue()
-                
-                st.download_button(
-                    label="📥 Descargar Materiales en Excel Real (.xlsx)",
-                    data=excel_data,
-                    file_name=f"Materiales_Instalados_{cod_clean}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.info("No se encontraron materiales vinculados para este proyecto.")
+        else:
+            st.info("No se encontraron materiales vinculados para este proyecto.")
+
+        st.markdown("---")
 
         # Tabla y Gráfico de Avance por Acción
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
@@ -461,7 +467,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not df_normal.empty:
                 fig_comb.add_trace(go.Bar(
                     x=df_normal['Acción'], y=df_normal['Planificado'], name='Planificado (Und)', 
-                    marker_color='#0d6efd', text=df_normal['Text_Plan'], textposition='auto'
+                    marker_color='#1b365d', text=df_normal['Text_Plan'], textposition='auto'
                 ), secondary_y=False)
                 
                 fig_comb.add_trace(go.Bar(
@@ -473,7 +479,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not df_cond.empty:
                 fig_comb.add_trace(go.Bar(
                     x=df_cond['Acción'], y=df_cond['Planificado'], name='Planificado (Conductor - Metros)', 
-                    marker_color='#38bdf8', text=df_cond['Text_Plan'], textposition='auto'
+                    marker_color='#2b5c8f', text=df_cond['Text_Plan'], textposition='auto'
                 ), secondary_y=True)
                 
                 fig_comb.add_trace(go.Bar(
