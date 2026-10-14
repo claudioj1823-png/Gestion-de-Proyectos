@@ -221,17 +221,14 @@ if menu == "Panel Ejecutivo por Proyecto":
             fuente_mat['Clean_SAP'] = fuente_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
             fuente_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(fuente_mat[col_cant_mat], errors='coerce').fillna(0)
             
-            # Limpieza de celdas fantasma o ceros
             fuente_mat = fuente_mat[~fuente_mat['Clean_SAP'].isin(['', 'NAN', 'NONE', '0'])]
             
-            # Agregación por Actividad y Código SAP para evitar coeficientes repetidos
             fuente_mat_clean = fuente_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].first()
             df_filtrado = fuente_mat_clean[fuente_mat_clean['Actividad_Clean'].isin(dict_cant_mo.keys())].copy()
             
             if not df_filtrado.empty:
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 
-                # REGLA EXACTA COCCIA Y CEBALLOS: Para '1VA-MT' y material '1000130' la cantidad es igual a la MO ejecutada
                 condicion_especial = (df_filtrado['Actividad_Clean'] == '1VA-MT') & (df_filtrado['Clean_SAP'] == '1000130')
                 df_filtrado["Cantidad_Total_Material"] = np.where(
                     condicion_especial,
@@ -304,10 +301,14 @@ if menu == "Panel Ejecutivo por Proyecto":
                 ).fillna(0)
                 
                 df_avance_acciones = df_avance_acciones[['Acción', 'Planificado', 'Ejecutado']]
-                df_avance_acciones['% Avance'] = df_avance_acciones.apply(
-                    lambda r: f"{(r['Ejecutado'] / r['Planificado'] * 100):.1f}%" if r['Planificado'] > 0 else "0.0%",
-                    axis=1
+                
+                # Cálculo de porcentaje numérico para promediar
+                df_avance_acciones['Num_Avance'] = np.where(
+                    df_avance_acciones['Planificado'] > 0,
+                    (df_avance_acciones['Ejecutado'] / df_avance_acciones['Planificado']) * 100,
+                    0.0
                 )
+                df_avance_acciones['% Avance'] = df_avance_acciones['Num_Avance'].apply(lambda x: f"{x:.1f}%")
 
         total_ejecutado = monto_mo + costo_materiales_total
         porcentaje_ejecutado = (total_ejecutado / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
@@ -345,7 +346,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                     use_container_width=True
                 )
                 
-                # --- BOTÓN DE DESCARGA DIRECTA EN EXCEL REAL (.XLSX) ---
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
@@ -361,10 +361,32 @@ if menu == "Panel Ejecutivo por Proyecto":
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        # Tabla y Gráfico de Avance por Acción
+        # Tabla y Gráfico de Avance por Acción (CON COMAS Y FILA DE PROMEDIO ABAJO)
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
-            st.dataframe(df_avance_acciones[['Acción', 'Planificado', 'Ejecutado', '% Avance']], use_container_width=True, hide_index=True)
+            # Creamos una copia para visualización formateada
+            df_disp_avance = pd.DataFrame()
+            df_disp_avance['Acción'] = df_avance_acciones['Acción']
+            df_disp_avance['Planificado'] = df_avance_acciones['Planificado'].apply(lambda x: f"{int(x):,}")
+            df_disp_avance['Ejecutado'] = df_avance_acciones['Ejecutado'].apply(lambda x: f"{int(x):,}")
+            df_disp_avance['% Avance'] = df_avance_acciones['% Avance']
+
+            # Calcular totales y promedio general para la fila inferior
+            tot_plan_val = df_avance_acciones['Planificado'].sum()
+            tot_ejec_val = df_avance_acciones['Ejecutado'].sum()
+            prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
+
+            # Fila de totales y promedio
+            fila_total_avance = pd.DataFrame({
+                'Acción': ['PROMEDIO / TOTAL GENERAL'],
+                'Planificado': [f"{int(tot_plan_val):,}"],
+                'Ejecutado': [f"{int(tot_ejec_val):,}"],
+                '% Avance': [f"{prom_avance_gen:.1f}%"]
+            })
+
+            df_avance_final = pd.concat([df_disp_avance, fila_total_avance], ignore_index=True)
+
+            st.dataframe(df_avance_final, use_container_width=True, hide_index=True)
             
             fig_comb = go.Figure()
             fig_comb.add_trace(go.Bar(x=df_avance_acciones['Acción'], y=df_avance_acciones['Planificado'], name='Planificado', marker_color='#1f77b4'))
