@@ -19,13 +19,6 @@ st.markdown("""
     .stMetric label { color: #6c757d !important; font-weight: 600; font-size: 14px; }
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
-    
-    /* Estilo ejecutivo para las cabeceras de todas las tablas en Streamlit (Azul oscuro y letras blancas) */
-    thead tr th {
-        background-color: #0b2240 !important;
-        color: #ffffff !important;
-        font-weight: bold !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -148,6 +141,11 @@ if st.sidebar.button("🔄 RECARGAR DATOS"):
     st.rerun()
 
 st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
+
+# Estilo reutilizable para cabeceras de tablas (Fondo azul oscuro #0b2240 y texto blanco)
+estilo_tabla_header = [
+    {'selector': 'th', 'props': [('background-color', '#0b2240'), ('color', '#ffffff'), ('font-weight', 'bold'), ('text-align', 'center')]}
+]
 
 if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
@@ -342,12 +340,13 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_mostrador.empty:
+                # Aplicando Styler de Pandas para cabecera azul y letras blancas
                 st.dataframe(
                     df_materiales_mostrador.style.format({
                         'Cantidad Total': '{:,.2f}',
                         'Precio Unitario SAP': 'RD$ {:,.2f}',
                         'Costo Total': 'RD$ {:,.2f}'
-                    }),
+                    }).set_table_styles(estilo_tabla_header),
                     hide_index=True,
                     use_container_width=True
                 )
@@ -387,7 +386,12 @@ if menu == "Panel Ejecutivo por Proyecto":
 
             df_avance_final = pd.concat([df_disp_avance, fila_total_avance], ignore_index=True)
 
-            st.dataframe(df_avance_final, use_container_width=True, hide_index=True)
+            # Aplicando Styler de Pandas para cabecera azul y letras blancas
+            st.dataframe(
+                df_avance_final.style.set_table_styles(estilo_tabla_header),
+                use_container_width=True,
+                hide_index=True
+            )
             
             df_grafico_acc = df_avance_acciones.copy()
             mask_conductor = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
@@ -439,7 +443,12 @@ if menu == "Panel Ejecutivo por Proyecto":
         # Detalle de Mano de Obra en Expansor Limpio
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
-                st.dataframe(df_mo_agrupado, hide_index=True, use_container_width=True)
+                # Aplicando Styler de Pandas también aquí
+                st.dataframe(
+                    df_mo_agrupado.style.set_table_styles(estilo_tabla_header),
+                    hide_index=True,
+                    use_container_width=True
+                )
             else:
                 st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
     else:
@@ -469,7 +478,10 @@ elif menu == "Relación Mano de Obra y Materiales":
         df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
         df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
         
-        st.dataframe(df_matriz_final, use_container_width=True)
+        st.dataframe(
+            df_matriz_final.style.set_table_styles(estilo_tabla_header),
+            use_container_width=True
+        )
     else:
         st.warning("No se encontraron los archivos de contratistas o precios SAP.")
 
