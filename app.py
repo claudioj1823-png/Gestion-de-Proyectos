@@ -153,9 +153,9 @@ if menu == "Panel Ejecutivo por Proyecto":
             cols_desc_p = [c for c in df_codigos.columns if 'nombre' in c.lower() or 'descripci' in c.lower() or ('proyecto' in c.lower() and c != col_codigo_p)]
             if cols_desc_p:
                 col_desc_p = cols_desc_p[0]
-                df_codigos = df_codigos.copy()
-                df_codigos['Clean_Cod'] = df_codigos[col_codigo_p].astype(str).str.strip()
-                match_p = df_codigos[df_codigos['Clean_Cod'] == cod_clean]
+                df_codigos_copy = df_codigos.copy()
+                df_codigos_copy['Clean_Cod'] = df_codigos_copy[col_codigo_p].astype(str).str.strip()
+                match_p = df_codigos_copy[df_codigos_copy['Clean_Cod'] == cod_clean]
                 if not match_p.empty:
                     nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
         
@@ -347,11 +347,12 @@ if menu == "Panel Ejecutivo por Proyecto":
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
-                processed_data = output.getvalue()
+                
+                excel_data = output.getvalue()
                 
                 st.download_button(
                     label="📥 Descargar Materiales en Excel Real (.xlsx)",
-                    data=processed_data,
+                    data=excel_data,
                     file_name=f"Materiales_Instalados_{cod_clean}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
