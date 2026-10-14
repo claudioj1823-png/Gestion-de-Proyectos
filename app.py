@@ -227,7 +227,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not df_filtrado.empty:
                 df_filtrado['Cant_IDP'] = df_filtrado['Actividad_Clean'].map(dict_cant_mo)
                 
-                # REGLA ESPECIAL COCCIA Y CEBALLOS: Para '1VA-MT' y material '1000130', la cantidad total es exactamente igual a la cantidad de MO
+                # REGLA ESPECIAL COCCIA Y CEBALLOS: Para '1VA-MT' y material '1000130'
                 condicion_especial = (df_filtrado['Actividad_Clean'] == '1VA-MT') & (df_filtrado['Clean_SAP'] == '1000130')
                 df_filtrado["Cantidad_Total_Material"] = np.where(
                     condicion_especial,
@@ -257,10 +257,12 @@ if menu == "Panel Ejecutivo por Proyecto":
                 costo_materiales_total = df_resumen_mat['Costo_Material'].sum()
                 df_materiales_calculados = df_resumen_mat.copy()
                 
+                # MANTENEMOS NÚMEROS PUROS PARA QUE EXCEL PUEDA SUMARLOS DIRECTAMENTE
                 df_display = df_resumen_mat.copy()
-                df_display['Cantidad Total'] = df_display['Cantidad_Total_Material'].apply(lambda x: f"{x:,.2f}".rstrip('0').rstrip('.') if x % 1 != 0 else f"{int(x):,}")
-                df_display['Precio Unitario SAP'] = df_display['Precio_Oficial'].apply(lambda x: f"RD$ {x:,.2f}")
-                df_display['Costo Total'] = df_display['Costo_Material'].apply(lambda x: f"RD$ {x:,.2f}")
+                df_display['Cantidad Total'] = df_display['Cantidad_Total_Material']
+                df_display['Precio Unitario SAP'] = df_display['Precio_Oficial']
+                df_display['Costo Total'] = df_display['Costo_Material']
+                
                 df_display = df_display.rename(columns={
                     'Clean_SAP': "Código SAP",
                     'Descripcion_Oficial': "Descripción de Material"
@@ -329,7 +331,16 @@ if menu == "Panel Ejecutivo por Proyecto":
         with col_g2:
             st.markdown("#### 🛠️ Materiales Instalados")
             if not df_materiales_mostrador.empty:
-                st.dataframe(df_materiales_mostrador, hide_index=True, use_container_width=True)
+                # Usamos st.dataframe con styler para formatear visualmente en moneda sin convertir el dato interno a texto plano
+                st.dataframe(
+                    df_materiales_mostrador.style.format({
+                        'Cantidad Total': '{:,.2f}',
+                        'Precio Unitario SAP': 'RD$ {:,.2f}',
+                        'Costo Total': 'RD$ {:,.2f}'
+                    }),
+                    hide_index=True,
+                    use_container_width=True
+                )
             else:
                 st.info("No se encontraron materiales vinculados para este proyecto.")
 
