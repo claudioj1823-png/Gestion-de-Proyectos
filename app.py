@@ -22,7 +22,7 @@ st.markdown("""
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
     
-    /* Estilo HTML exacto para tablas ejecutivas EDEESTE (Ocupando ancho completo limpio) */
+    /* Estilo HTML exacto para tablas ejecutivas EDEESTE */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
@@ -374,7 +374,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         st.markdown("---")
         st.markdown("### 📊 Desglose Financiero y Operativo")
         
-        # 1. GRÁFICO FINANCIERO A ANCHO COMPLETO (Con paleta corporativa seria y profesional EDEESTE)
+        # 1. GRÁFICO FINANCIERO A ANCHO COMPLETO
         df_grafico = pd.DataFrame({
             'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
             'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
@@ -382,12 +382,11 @@ if menu == "Panel Ejecutivo por Proyecto":
         
         df_grafico['Texto_Monto'] = df_grafico['Monto (RD$)'].apply(lambda x: f"RD$ {x:,.2f}")
         
-        # Paleta ejecutiva sobria y formal (Azul marino, Azul acero, Ámbar corporativo, Gris grafito)
         mapa_colores_ejecutivo = {
-            'Mano de Obra': '#1b365d',           # Azul Marino Oscuro Institucional
-            'Materiales Instalados': '#2b5c8f',   # Azul Acero
-            'Monto Invertido': '#d97706',         # Ámbar / Dorado Corporativo
-            'Presupuesto Plan.': '#4b5563'        # Gris Grafito Plomo
+            'Mano de Obra': '#1b365d',
+            'Materiales Instalados': '#2b5c8f',
+            'Monto Invertido': '#d97706',
+            'Presupuesto Plan.': '#4b5563'
         }
         
         fig_bar = px.bar(
@@ -411,7 +410,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             
         st.markdown("---")
         
-        # 2. TABLA DE MATERIALES INSTALADOS A ANCHO COMPLETO (Sin espacios en blanco molestos a la izquierda)
+        # 2. TABLA DE MATERIALES INSTALADOS A ANCHO COMPLETO
         st.markdown("#### 🛠️ Materiales Instalados (Detalle SAP)")
         if not df_materiales_mostrador.empty:
             mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
@@ -433,70 +432,107 @@ if menu == "Panel Ejecutivo por Proyecto":
 
         st.markdown("---")
 
-        # Tabla y Gráfico de Avance por Acción
+        # 3. AVANCE POR ACCIÓN CON ESTILO GERENCIAL (Gráfico con Línea de % de Avance + Donut + Tabla Integrada)
         st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
-            df_disp_avance = pd.DataFrame()
-            df_disp_avance['Acción'] = df_avance_acciones['Acción']
-            df_disp_avance['Planificado'] = df_avance_acciones['Planificado'].apply(lambda x: f"{int(x):,}")
-            df_disp_avance['Ejecutado'] = df_avance_acciones['Ejecutado'].apply(lambda x: f"{int(x):,}")
-            df_disp_avance['% Avance'] = df_avance_acciones['% Avance']
-
-            prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
-
-            fila_total_avance = pd.DataFrame({
-                'Acción': ['<b>AVANCE FISICO DEL PROYECTO</b>'],
-                'Planificado': [''],
-                'Ejecutado': [''],
-                '% Avance': [f"<b>{prom_avance_gen:.1f}%</b>"]
-            })
-
-            df_avance_final = pd.concat([df_disp_avance, fila_total_avance], ignore_index=True)
-
-            mostrar_tabla_html_ejecutiva(df_avance_final)
             
-            df_grafico_acc = df_avance_acciones.copy()
-            df_grafico_acc['Es_Conductor'] = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
+            # Distribución en dos columnas: Izquierda el gráfico combinado con barras y línea de porcentaje, Derecha el KPI de dona
+            col_av_1, col_av_2 = st.columns([2.2, 1])
             
-            df_grafico_acc['Text_Plan'] = df_grafico_acc['Planificado'].apply(lambda x: f"{int(x):,}")
-            df_grafico_acc['Text_Ejec'] = df_grafico_acc['Ejecutado'].apply(lambda x: f"{int(x):,}")
-
-            fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            df_normal = df_grafico_acc[~df_grafico_acc['Es_Conductor']]
-            if not df_normal.empty:
-                fig_comb.add_trace(go.Bar(
-                    x=df_normal['Acción'], y=df_normal['Planificado'], name='Planificado (Und)', 
-                    marker_color='#1b365d', text=df_normal['Text_Plan'], textposition='auto'
-                ), secondary_y=False)
+            with col_av_1:
+                df_grafico_acc = df_avance_acciones.copy()
+                df_grafico_acc['Es_Conductor'] = df_grafico_acc['Acción'].str.lower().str.contains('conductor')
                 
-                fig_comb.add_trace(go.Bar(
-                    x=df_normal['Acción'], y=df_normal['Ejecutado'], name='Ejecutado (Und)', 
-                    marker_color='#2ca02c', text=df_normal['Text_Ejec'], textposition='auto'
-                ), secondary_y=False)
+                df_grafico_acc['Text_Plan'] = df_grafico_acc['Planificado'].apply(lambda x: f"{int(x):,}")
+                df_grafico_acc['Text_Ejec'] = df_grafico_acc['Ejecutado'].apply(lambda x: f"{int(x):,}")
+                df_grafico_acc['Porc_Texto'] = df_grafico_acc['Num_Avance'].apply(lambda x: f"{x:.0f}%")
 
-            df_cond = df_grafico_acc[df_grafico_acc['Es_Conductor']]
-            if not df_cond.empty:
-                fig_comb.add_trace(go.Bar(
-                    x=df_cond['Acción'], y=df_cond['Planificado'], name='Planificado (Conductor - Metros)', 
-                    marker_color='#2b5c8f', text=df_cond['Text_Plan'], textposition='auto'
+                fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                # Barras Planificado y Ejecutado (Eje Y primario)
+                df_normal = df_grafico_acc[~df_grafico_acc['Es_Conductor']]
+                if not df_normal.empty:
+                    fig_comb.add_trace(go.Bar(
+                        x=df_normal['Acción'], y=df_normal['Planificado'], name='Planificado', 
+                        marker_color='#1b365d', text=df_normal['Text_Plan'], textposition='auto'
+                    ), secondary_y=False)
+                    
+                    fig_comb.add_trace(go.Bar(
+                        x=df_normal['Acción'], y=df_normal['Ejecutado'], name='Ejecutado', 
+                        marker_color='#2b5c8f', text=df_normal['Text_Ejec'], textposition='auto'
+                    ), secondary_y=False)
+
+                # Si hay conductor en metros
+                df_cond = df_grafico_acc[df_grafico_acc['Es_Conductor']]
+                if not df_cond.empty:
+                    fig_comb.add_trace(go.Bar(
+                        x=df_cond['Acción'], y=df_cond['Planificado'], name='Planificado (Metros)', 
+                        marker_color='#1b365d', text=df_cond['Text_Plan'], textposition='auto'
+                    ), secondary_y=True)
+                    
+                    fig_comb.add_trace(go.Bar(
+                        x=df_cond['Acción'], y=df_cond['Ejecutado'], name='Ejecutado (Metros)', 
+                        marker_color='#2b5c8f', text=df_cond['Text_Ejec'], textposition='auto'
+                    ), secondary_y=True)
+
+                # Línea de % de Avance en Eje Secundario Superior (Estilo Exacto Imagen 15)
+                fig_comb.add_trace(go.Scatter(
+                    x=df_grafico_acc['Acción'], 
+                    y=df_grafico_acc['Num_Avance'], 
+                    name='% Avance', 
+                    mode='lines+markers+text',
+                    line=dict(color='#d97706', width=3),
+                    marker=dict(size=8, color='#d97706'),
+                    text=df_grafico_acc['Porc_Texto'],
+                    textposition='top center'
                 ), secondary_y=True)
                 
-                fig_comb.add_trace(go.Bar(
-                    x=df_cond['Acción'], y=df_cond['Ejecutado'], name='Ejecutado (Conductor - Metros)', 
-                    marker_color='#82c91e', text=df_cond['Text_Ejec'], textposition='auto'
-                ), secondary_y=True)
-            
-            fig_comb.update_layout(
-                title=f"Avance Gráfico por Acción - {nombre_proyecto_str} (Escala Dual: Unidades / Conductor)",
-                barmode='group',
-                xaxis_title="Acciones",
-                template="plotly_white"
-            )
-            fig_comb.update_yaxes(title_text="Magnitud en Unidades (Izquierda)", secondary_y=False)
-            fig_comb.update_yaxes(title_text="Magnitud de Conductor en Metros (Derecha)", secondary_y=True)
+                fig_comb.update_layout(
+                    title=f"Avance por Acción - {nombre_proyecto_str}",
+                    barmode='group',
+                    xaxis_title="",
+                    template="plotly_white",
+                    height=420,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                fig_comb.update_yaxes(title_text="Magnitud Unidades", secondary_y=False)
+                fig_comb.update_yaxes(title_text="% Avance / Metros", secondary_y=True, range=[0, 130])
 
-            st.plotly_chart(fig_comb, use_container_width=True)
+                st.plotly_chart(fig_comb, use_container_width=True)
+
+            with col_av_2:
+                # Gráfico de Dona KPI de Avance General (Estilo Imagen 15)
+                prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
+                faltante_gen = max(0, 100 - prom_avance_gen)
+                
+                fig_donut = go.Figure(data=[go.Pie(
+                    labels=['% Avance', '% Faltante'],
+                    values=[prom_avance_gen, faltante_gen],
+                    hole=0.65,
+                    marker=dict(colors=['#1b365d', '#ef4444']),
+                    textinfo='none'
+                )])
+                
+                fig_donut.update_layout(
+                    title=dict(text="<b>Avance Global del Proyecto</b>", x=0.5, xanchor='center'),
+                    annotations=[dict(text=f"<b>{prom_avance_gen:.1f}%</b>", x=0.5, y=0.5, font_size=24, showarrow=False)],
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+                    height=420,
+                    margin=dict(l=10, r=10, t=50, b=10),
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig_donut, use_container_width=True)
+
+            # Tabla resumen estructurada debajo del gráfico de avance (Estilo Imagen 15)
+            df_tabla_avance_clean = pd.DataFrame()
+            for idx, row in df_avance_acciones.iterrows():
+                df_tabla_avance_clean[row['Acción']] = [f"{int(row['Planificado']):,}", f"{int(row['Ejecutado']):,}", row['% Avance']]
+            
+            df_tabla_avance_clean.insert(0, 'Métrica / Concepto', ['Planificado', 'Ejecutado', '% Avance'])
+            
+            # Fila de Cierre "AVANCE FISICO DEL PROYECTO"
+            mostrar_tabla_html_ejecutiva(df_tabla_avance_clean)
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
                 
