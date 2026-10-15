@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilos CSS globales
+# Estilos CSS globales y semáforos corporativos
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; color: #212529; }
@@ -22,6 +22,29 @@ st.markdown("""
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
     
+    /* Cajas de Resumen Ejecutivo y Narrativa */
+    .resumen-gerencial-box {
+        background: #ffffff;
+        border-left: 5px solid #0d6efd;
+        padding: 18px 22px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .resumen-gerencial-box h4 {
+        margin-top: 0;
+        color: #0b2240 !important;
+        font-size: 16px;
+        font-weight: 700;
+    }
+    .resumen-gerencial-box p {
+        color: #333333;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 0;
+    }
+
     /* Estilo HTML exacto para tablas ejecutivas EDEESTE */
     .tabla-ejecutiva-container {
         width: 100%;
@@ -65,7 +88,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("## ⚡ EDEESTE • Control de Proyecto")
+st.markdown("## ⚡ EDEESTE • Control de Proyecto (Panel Gerencial)")
 st.markdown("---")
 
 def limpiar_nombre_columnas(df):
@@ -374,42 +397,60 @@ if menu == "Panel Ejecutivo por Proyecto":
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
         # -------------------------------------------------------------
-        # SECCIÓN DE AUDITORÍA AUTOMÁTICA Y ALERTAS INTELIGENTES (Detallada)
+        # 1. RESUMEN EJECUTIVO / NARRATIVA AUTOMÁTICA DEL PROYECTO
+        # -------------------------------------------------------------
+        estado_presupuesto = "en orden"
+        if presupuesto_plan > 0:
+            if porcentaje_ejecutado > 100:
+                estado_presupuesto = "con sobreejecución presupuestaria"
+            elif porcentaje_ejecutado >= 85:
+                estado_presupuesto = "con ejecución avanzada cercana a la meta"
+            else:
+                estado_presupuesto = "con ejecución dentro de parámetros normales"
+
+        alerta_mat_txt = "No se detectan materiales con precio $0.00."
+        if not df_resumen_mat.empty:
+            mat_sin_p = df_resumen_mat[df_resumen_mat['Precio_Oficial'] == 0]
+            if not mat_sin_p.empty:
+                alerta_mat_txt = f"⚠️ Existen {len(mat_sin_p)} material(es) en campo con precio SAP en $0.00 pendientes de actualización."
+
+        st.markdown(f"""
+            <div class="resumen-gerencial-box">
+                <h4>📋 Resumen Ejecutivo y Diagnóstico Gerencial</h4>
+                <p>El proyecto <b>{nombre_proyecto_str}</b> presenta una inversión acumulada de <b>RD$ {total_ejecutado:,.2f}</b>, alcanzando un <b>{porcentaje_ejecutado:.1f}%</b> del presupuesto planificado (RD$ {presupuesto_plan:,.2f}), encontrándose {estado_presupuesto}. 
+                En el ámbito físico, la ejecución de actividades muestra avances consolidados en campo. {alerta_mat_txt}</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # -------------------------------------------------------------
+        # 2. SISTEMA DE ALERTAS Y MATRIZ DE RIESGOS (Semáforos)
         # -------------------------------------------------------------
         alertas = []
         
-        # 1. Alerta Presupuestaria Financiera
         if presupuesto_plan > 0 and total_ejecutado > presupuesto_plan:
             exceso = total_ejecutado - presupuesto_plan
-            alertas.append(f"🚨 **Alerta Presupuestaria:** El monto invertido ha superado el presupuesto planificado por **RD$ {exceso:,.2f}** ({porcentaje_ejecutado:.1f}% ejecutado).")
+            alertas.append(f"🚨 **Alerta Financiera (Riesgo Alto):** El monto invertido supera el presupuesto planificado por **RD$ {exceso:,.2f}** ({porcentaje_ejecutado:.1f}%).")
         
-        # 2. Alerta de Sobreejecución Física en Actividades
         if not df_avance_acciones.empty:
             actividades_sobre = df_avance_acciones[df_avance_acciones['Num_Avance'] > 100]
             if not actividades_sobre.empty:
                 nombres_sobr = ", ".join([f"**{r['Acción']}** ({r['% Avance']})" for _, r in actividades_sobre.iterrows()])
-                alertas.append(f"⚠️ **Desvío Físico Detectado:** Las siguientes actividades superaron el 100% de la meta planificada: {nombres_sobr}.")
+                alertas.append(f"⚠️ **Desvío Físico (Riesgo Moderado):** Actividades con sobreejecución mayor al 100%: {nombres_sobr}.")
         
-        # 3. Alerta de Precios Faltantes en SAP (Con detalle de Código y Nombre)
         if not df_resumen_mat.empty:
             mat_sin_precio = df_resumen_mat[df_resumen_mat['Precio_Oficial'] == 0]
             if not mat_sin_precio.empty:
-                detalles_mat = []
-                for _, row in mat_sin_precio.iterrows():
-                    detalles_mat.append(f"**[{row['Clean_SAP']}] {row['Descripcion_Oficial']}**")
-                
-                lista_nombres = ", ".join(detalles_mat)
-                alertas.append(f"🔍 **Auditoría de Materiales (Precio $0.00):** Se requiere revisar el precio SAP para: {lista_nombres}.")
+                detalles_mat = [f"**[{row['Clean_SAP']}] {row['Descripcion_Oficial']}**" for _, row in mat_sin_precio.iterrows()]
+                alertas.append(f"🔍 **Auditoría de Materiales (Atención Requerida):** Precios SAP en $0.00 para: {', '.join(detalles_mat)}.")
 
         if alertas:
-            st.markdown("<br>", unsafe_allow_html=True)
             with st.container():
                 for alt in alertas:
                     st.warning(alt)
 
         st.markdown("---")
         
-        # 2. DESGLOSE FINANCIERO Y OPERATIVO (Comparativo Financiero)
+        # 3. DESGLOSE FINANCIERO Y OPERATIVO
         st.markdown("### 📊 Desglose Financiero y Operativo")
         
         df_grafico = pd.DataFrame({
@@ -447,7 +488,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             
         st.markdown("---")
 
-        # 3. AVANCE TOTAL
+        # 4. AVANCE TOTAL
         st.markdown("### 🎯 Avance Total (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             
@@ -547,7 +588,7 @@ if menu == "Panel Ejecutivo por Proyecto":
 
         st.markdown("---")
 
-        # 4. MÓDULOS DESPLEGABLES DE AUDITORÍA Y DETALLES AL FINAL
+        # 5. MÓDULOS DESPLEGABLES DE AUDITORÍA Y DETALLES AL FINAL
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
                 mostrar_tabla_html_ejecutiva(df_mo_agrupado)
