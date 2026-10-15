@@ -198,7 +198,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 if not match_p.empty:
                     nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
         
-        # 1. ENCABEZADO PRINCIPAL (Se queda exactamente al principio)
+        # 1. ENCABEZADO PRINCIPAL
         st.markdown(f"<h4 style='color: #212529; margin-bottom: 15px;'>📌 PROYECTO: <b style='color: #0d6efd;'>{nombre_proyecto_str}</b></h4>", unsafe_allow_html=True)
         
         # Procesamiento de Datos de Mano de Obra
@@ -372,6 +372,35 @@ if menu == "Panel Ejecutivo por Proyecto":
         c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
+        # -------------------------------------------------------------
+        # NUEVA SECCIÓN DE AUDITORÍA AUTOMÁTICA Y ALERTAS INTELIGENTES
+        # -------------------------------------------------------------
+        alertas = []
+        
+        # 1. Alerta Presupuestaria Financiera
+        if presupuesto_plan > 0 and total_ejecutado > presupuesto_plan:
+            exceso = total_ejecutado - presupuesto_plan
+            alertas.append(f"🚨 **Alerta Presupuestaria:** El monto invertido ha superado el presupuesto planificado por **RD$ {exceso:,.2f}** ({porcentaje_ejecutado:.1f}% ejecutado).")
+        
+        # 2. Alerta de Sobreejecución Física en Actividades
+        if not df_avance_acciones.empty:
+            actividades_sobre = df_avance_acciones[df_avance_acciones['Num_Avance'] > 100]
+            if not actividades_sobre.empty:
+                nombres_sobr = ", ".join([f"**{r['Acción']}** ({r['% Avance']})" for _, r in actividades_sobre.iterrows()])
+                alertas.append(f"⚠️ **Desvío Físico Detectado:** Las siguientes actividades superaron el 100% de la meta planificada: {nombres_sobr}.")
+        
+        # 3. Alerta de Precios Faltantes en SAP
+        if 'df_resumen_mat' in locals() and not df_resumen_mat.empty:
+            mat_sin_precio = df_resumen_mat[df_resumen_mat['Precio_Oficial'] == 0]
+            if not mat_sin_precio.empty:
+                alertas.append(f"🔍 **Auditoría de Materiales:** Se identificaron **{len(mat_sin_precio)}** material(es) en campo con precio SAP registrado en $0.00.")
+
+        if alertas:
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.container():
+                for alt in alertas:
+                    st.warning(alt)
+
         st.markdown("---")
         
         # 2. DESGLOSE FINANCIERO Y OPERATIVO (Comparativo Financiero)
@@ -412,8 +441,8 @@ if menu == "Panel Ejecutivo por Proyecto":
             
         st.markdown("---")
 
-        # 3. AVANCE TOTAL POR ACCIÓN (Alineado inmediatamente debajo del Desglose Financiero)
-        st.markdown("### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
+        # 3. AVANCE TOTAL
+        st.markdown("### 🎯 Avance Total (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             
             col_av_1, col_av_2 = st.columns([2.2, 1])
@@ -464,7 +493,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 ), secondary_y=True)
                 
                 fig_comb.update_layout(
-                    title=f"Avance por Acción - {nombre_proyecto_str}",
+                    title=f"Avance - {nombre_proyecto_str}",
                     barmode='group',
                     xaxis_title="",
                     template="plotly_white",
