@@ -198,9 +198,10 @@ if menu == "Panel Ejecutivo por Proyecto":
                 if not match_p.empty:
                     nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
         
+        # 1. ENCABEZADO PRINCIPAL (Se queda exactamente al principio)
         st.markdown(f"<h4 style='color: #212529; margin-bottom: 15px;'>📌 PROYECTO: <b style='color: #0d6efd;'>{nombre_proyecto_str}</b></h4>", unsafe_allow_html=True)
         
-        # 1. Mano de Obra Ejecutada
+        # Procesamiento de Datos de Mano de Obra
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
         if df_mo is not None and not df_mo.empty:
@@ -221,7 +222,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             serie_costos = df_mo_proy[col_costo_mo].astype(str).str.replace('$', '', regex=False).str.replace(',', '', regex=False).str.strip()
             monto_mo = pd.to_numeric(serie_costos, errors='coerce').sum()
 
-        # 2. Presupuesto Planificado
+        # Presupuesto Planificado
         presupuesto_plan = 0.0
         if df_metas is not None and not df_metas.empty:
             col_proy_meta = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
@@ -235,7 +236,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # 3. Procesamiento y Materiales utilizando la Hoja 3
+        # Materiales
         costo_materiales_total = 0.0
         df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -320,7 +321,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 
                 df_materiales_mostrador = df_display
 
-        # 4. Cruce de Metas vs Ejecutado
+        # Metas vs Ejecutado
         df_avance_acciones = pd.DataFrame()
         if df_metas is not None and not df_metas.empty:
             col_proy_m = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
@@ -363,7 +364,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         total_ejecutado = monto_mo + costo_materiales_total
         porcentaje_ejecutado = (total_ejecutado / presupuesto_plan * 100) if presupuesto_plan > 0 else 0
 
-        # Tarjetas Métricas Ejecutivas
+        # Tarjetas Métricas Ejecutivas Superiores
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
         c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
@@ -372,9 +373,10 @@ if menu == "Panel Ejecutivo por Proyecto":
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
         st.markdown("---")
+        
+        # 2. DESGLOSE FINANCIERO Y OPERATIVO (Comparativo Financiero)
         st.markdown("### 📊 Desglose Financiero y Operativo")
         
-        # 1. GRÁFICO FINANCIERO A ANCHO COMPLETO
         df_grafico = pd.DataFrame({
             'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
             'Monto (RD$)': [monto_mo, costo_materiales_total, total_ejecutado, presupuesto_plan]
@@ -404,39 +406,16 @@ if menu == "Panel Ejecutivo por Proyecto":
             xaxis_title="", 
             template="plotly_white",
             margin=dict(l=20, r=20, t=40, b=20),
-            height=420
+            height=400
         )
         st.plotly_chart(fig_bar, use_container_width=True)
             
         st.markdown("---")
-        
-        # 2. TABLA DE MATERIALES INSTALADOS A ANCHO COMPLETO
-        st.markdown("#### 🛠️ Materiales Instalados (Detalle SAP)")
-        if not df_materiales_mostrador.empty:
-            mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
-            
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
-            
-            excel_data = output.getvalue()
-            
-            st.download_button(
-                label="📥 Descargar Materiales en Excel Real (.xlsx)",
-                data=excel_data,
-                file_name=f"Materiales_Instalados_{cod_clean}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.info("No se encontraron materiales vinculados para este proyecto.")
 
-        st.markdown("---")
-
-        # 3. AVANCE POR ACCIÓN CON ESTILO GERENCIAL (Gráfico con Línea de % de Avance + Donut + Tabla Integrada)
-        st.markdown("#### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
+        # 3. AVANCE TOTAL POR ACCIÓN (Alineado inmediatamente debajo del Desglose Financiero)
+        st.markdown("### 🎯 Avance Total por Acción (Planificado vs Ejecutado)")
         if not df_avance_acciones.empty:
             
-            # Distribución en dos columnas: Izquierda el gráfico combinado con barras y línea de porcentaje, Derecha el KPI de dona
             col_av_1, col_av_2 = st.columns([2.2, 1])
             
             with col_av_1:
@@ -449,7 +428,6 @@ if menu == "Panel Ejecutivo por Proyecto":
 
                 fig_comb = make_subplots(specs=[[{"secondary_y": True}]])
                 
-                # Barras Planificado y Ejecutado (Eje Y primario)
                 df_normal = df_grafico_acc[~df_grafico_acc['Es_Conductor']]
                 if not df_normal.empty:
                     fig_comb.add_trace(go.Bar(
@@ -462,7 +440,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                         marker_color='#2b5c8f', text=df_normal['Text_Ejec'], textposition='auto'
                     ), secondary_y=False)
 
-                # Si hay conductor en metros
                 df_cond = df_grafico_acc[df_grafico_acc['Es_Conductor']]
                 if not df_cond.empty:
                     fig_comb.add_trace(go.Bar(
@@ -475,7 +452,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                         marker_color='#2b5c8f', text=df_cond['Text_Ejec'], textposition='auto'
                     ), secondary_y=True)
 
-                # Línea de % de Avance en Eje Secundario Superior (Estilo Exacto Imagen 15)
                 fig_comb.add_trace(go.Scatter(
                     x=df_grafico_acc['Acción'], 
                     y=df_grafico_acc['Num_Avance'], 
@@ -501,7 +477,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 st.plotly_chart(fig_comb, use_container_width=True)
 
             with col_av_2:
-                # Gráfico de Dona KPI de Avance General (Estilo Imagen 15)
                 prom_avance_gen = df_avance_acciones['Num_Avance'].mean()
                 faltante_gen = max(0, 100 - prom_avance_gen)
                 
@@ -524,23 +499,45 @@ if menu == "Panel Ejecutivo por Proyecto":
                 )
                 st.plotly_chart(fig_donut, use_container_width=True)
 
-            # Tabla resumen estructurada debajo del gráfico de avance (Estilo Imagen 15)
+            # Tabla resumen estructurada alineada abajo
             df_tabla_avance_clean = pd.DataFrame()
             for idx, row in df_avance_acciones.iterrows():
                 df_tabla_avance_clean[row['Acción']] = [f"{int(row['Planificado']):,}", f"{int(row['Ejecutado']):,}", row['% Avance']]
             
             df_tabla_avance_clean.insert(0, 'Métrica / Concepto', ['Planificado', 'Ejecutado', '% Avance'])
             
-            # Fila de Cierre "AVANCE FISICO DEL PROYECTO"
             mostrar_tabla_html_ejecutiva(df_tabla_avance_clean)
         else:
             st.info("No se encontraron metas planificadas para este proyecto.")
-                
+
+        st.markdown("---")
+
+        # 4. MÓDULOS DESPLEGABLES DE AUDITORÍA Y DETALLES AL FINAL
         with st.expander("📋 Ver Auditoría Detallada de Mano de Obra (Ejecución en Campo)"):
             if not df_mo_agrupado.empty:
                 mostrar_tabla_html_ejecutiva(df_mo_agrupado)
             else:
                 st.warning(f"⚠️ No se encontraron registros de mano de obra para el código '{codigo_seleccionado}'.")
+
+        with st.expander("🛠️ Ver Detalle de Materiales Instalados (SAP)"):
+            if not df_materiales_mostrador.empty:
+                mostrar_tabla_html_ejecutiva(df_materiales_mostrador)
+                
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_materiales_mostrador.to_excel(writer, index=False, sheet_name='Materiales Instalados')
+                
+                excel_data = output.getvalue()
+                
+                st.download_button(
+                    label="📥 Descargar Materiales en Excel Real (.xlsx)",
+                    data=excel_data,
+                    file_name=f"Materiales_Instalados_{cod_clean}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.info("No se encontraron materiales vinculados para este proyecto.")
+
     else:
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
