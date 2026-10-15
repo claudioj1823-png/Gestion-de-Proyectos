@@ -241,6 +241,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
         df_mo_fisico = pd.DataFrame()
+        df_resumen_mat = pd.DataFrame()
         
         if df_contratistas is not None and not df_contratistas.empty and df_sap is not None and not df_sap.empty and not df_mo_proy.empty:
             fuente_mat = df_contratistas.copy()
@@ -373,7 +374,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
         # -------------------------------------------------------------
-        # NUEVA SECCIÓN DE AUDITORÍA AUTOMÁTICA Y ALERTAS INTELIGENTES
+        # SECCIÓN DE AUDITORÍA AUTOMÁTICA Y ALERTAS INTELIGENTES (Detallada)
         # -------------------------------------------------------------
         alertas = []
         
@@ -389,11 +390,16 @@ if menu == "Panel Ejecutivo por Proyecto":
                 nombres_sobr = ", ".join([f"**{r['Acción']}** ({r['% Avance']})" for _, r in actividades_sobre.iterrows()])
                 alertas.append(f"⚠️ **Desvío Físico Detectado:** Las siguientes actividades superaron el 100% de la meta planificada: {nombres_sobr}.")
         
-        # 3. Alerta de Precios Faltantes en SAP
-        if 'df_resumen_mat' in locals() and not df_resumen_mat.empty:
+        # 3. Alerta de Precios Faltantes en SAP (Con detalle de Código y Nombre)
+        if not df_resumen_mat.empty:
             mat_sin_precio = df_resumen_mat[df_resumen_mat['Precio_Oficial'] == 0]
             if not mat_sin_precio.empty:
-                alertas.append(f"🔍 **Auditoría de Materiales:** Se identificaron **{len(mat_sin_precio)}** material(es) en campo con precio SAP registrado en $0.00.")
+                detalles_mat = []
+                for _, row in mat_sin_precio.iterrows():
+                    detalles_mat.append(f"**[{row['Clean_SAP']}] {row['Descripcion_Oficial']}**")
+                
+                lista_nombres = ", ".join(detalles_mat)
+                alertas.append(f"🔍 **Auditoría de Materiales (Precio $0.00):** Se requiere revisar el precio SAP para: {lista_nombres}.")
 
         if alertas:
             st.markdown("<br>", unsafe_allow_html=True)
