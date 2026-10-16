@@ -451,7 +451,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         st.markdown("---")
         
         # 3. DESGLOSE FINANCIERO Y OPERATIVO
-        st.markdown("### 📊 Desglose Financiero y Operativo")
+        st.markdown("### 📊 Desglose Financiero Y Operativo")
         
         df_grafico = pd.DataFrame({
             'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
@@ -622,7 +622,7 @@ else:
     # MÓDULO DE MAPA INTERACTIVO DE INVERSIÓN (GEOPORTAL EDEESTE)
     # -------------------------------------------------------------
     st.subheader("🗺️ Geoportal e Inversión Territorial en Zona EDEESTE")
-    st.markdown("Visualización geográfica de los proyectos activos con sus coordenadas reales registradas en el sistema.")
+    st.markdown("Visualización geográfica de los proyectos activos según las coordenadas registradas en el sistema. Pase el cursor sobre los círculos para ver el detalle de la inversión.")
     
     if df_codigos is not None and not df_codigos.empty:
         col_lat = next((c for c in df_codigos.columns if 'lat' in c.lower()), None)
@@ -648,7 +648,7 @@ else:
                 except Exception:
                     continue
                 
-                # Calcular Inversión Real del Proyecto para el Resumen
+                # Calcular Inversión Real del Proyecto
                 monto_p = 0.0
                 if df_mo is not None and not df_mo.empty:
                     col_p_mo = next((c for c in df_mo.columns if 'proyecto' in c.lower()), df_mo.columns[-2])
@@ -662,19 +662,36 @@ else:
                     'Proyecto': f"{p_cod} - {p_nom}",
                     'lat': p_lat,
                     'lon': p_lon,
-                    'Inversión (RD$)': f"RD$ {monto_p:,.2f}"
+                    'Monto_Num': monto_p if monto_p > 0 else 100000,
+                    'Inversión RD$': f"RD$ {monto_p:,.2f}"
                 })
             
             df_mapa_real = pd.DataFrame(map_list)
             
             if not df_mapa_real.empty:
-                # Mapa nativo de Streamlit ultra estable y rápido
-                st.map(df_mapa_real, latitude="lat", longitude="lon", zoom=9, use_container_width=True)
+                # Mapeo usando la API nativa de Plotly Express para Mapbox/OpenStreetMap de forma compatible
+                fig_map = px.scatter_mapbox(
+                    df_mapa_real,
+                    lat="lat",
+                    lon="lon",
+                    hover_name="Proyecto",
+                    hover_data={"Inversión RD$": True, "Monto_Num": False, "lat": False, "lon": False},
+                    size="Monto_Num",
+                    size_max=22,
+                    color_discrete_sequence=["#0d6efd"],
+                    zoom=9.2,
+                    center={"lat": 18.52, "lon": -69.80},
+                    height=600
+                )
                 
-                st.success(f"📍 Se han mapeado correctamente **{len(df_mapa_real)} proyectos activos** con coordenadas geográficas en EDEESTE.")
+                # Configuración de mapa abierto sin necesidad de tokens
+                fig_map.update_layout(
+                    mapbox_style="open-street-map",
+                    margin={"r":0,"t":0,"l":0,"b":0}
+                )
                 
-                st.markdown("### 📋 Listado de Proyectos Ubicados en el Geoportal")
-                mostrar_tabla_html_ejecutiva(df_mapa_real[['Código', 'Proyecto', 'Inversión (RD$)']])
+                st.plotly_chart(fig_map, use_container_width=True)
+                st.success(f"📍 Se han mapeado correctamente **{len(df_mapa_real)} proyectos activos** con coordenadas geográficas e interactividad en EDEESTE.")
             else:
                 st.warning("⚠️ No se encontraron coordenadas válidas cargadas en las columnas del archivo Excel.")
         else:
