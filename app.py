@@ -622,7 +622,7 @@ else:
     # MÓDULO DE MAPA INTERACTIVO DE INVERSIÓN (GEOPORTAL EDEESTE)
     # -------------------------------------------------------------
     st.subheader("🗺️ Geoportal e Inversión Territorial en Zona EDEESTE")
-    st.markdown("Visualización geográfica de los proyectos activos según las coordenadas registradas en el sistema. Pase el cursor sobre los círculos para ver el detalle de la inversión.")
+    st.markdown("Visualización geográfica de los proyectos activos según las coordenadas registradas en el sistema. Pase el cursor sobre los puntos para ver el detalle de la inversión.")
     
     if df_codigos is not None and not df_codigos.empty:
         col_lat = next((c for c in df_codigos.columns if 'lat' in c.lower()), None)
@@ -662,7 +662,7 @@ else:
                     'Proyecto': f"{p_cod} - {p_nom}",
                     'lat': p_lat,
                     'lon': p_lon,
-                    'Inversión RD$': monto_p if monto_p > 0 else 50000 # Valor base mínimo para visualización de burbuja
+                    'Inversión (RD$)': monto_p if monto_p > 0 else 100000
                 })
             
             df_mapa_real = pd.DataFrame(map_list)
@@ -673,16 +673,16 @@ else:
                     lat="lat",
                     lon="lon",
                     hover_name="Proyecto",
-                    hover_data={"Inversión RD$": ":,.2f", "lat": False, "lon": False, "Código": False},
-                    size="Inversión RD$",
+                    hover_data={"Inversión (RD$)": ":,.2f", "lat": False, "lon": False, "Código": False},
+                    size="Inversión (RD$)",
                     size_max=25,
-                    color="Inversión RD$",
-                    color_continuous_scale="Viridis",
+                    color="Inversión (RD$)",
+                    color_continuous_scale="Blues",
                     zoom=9,
                     height=600
                 )
                 fig_map.update_layout(
-                    mapbox_style="carto-positron",
+                    mapbox_style="open-street-map",
                     margin={"r":0,"t":0,"l":0,"b":0}
                 )
                 st.plotly_chart(fig_map, use_container_width=True)
