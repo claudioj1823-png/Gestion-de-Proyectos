@@ -748,42 +748,52 @@ else:
                     "Inversión RD$"
                 ].apply(lambda x: f"RD$ {x:,.2f}")
 
-                # Mapa: tamaño uniforme para no sugerir valores falsos
-                fig_map = px.scatter_mapbox(
-                    df_mapa,
-                    lat="lat",
-                    lon="lon",
-                    hover_name="Proyecto",
-                    hover_data={
-                        "Código": True,
-                        "Inversión": True,
-                        "lat": False,
-                        "lon": False,
-                        "Inversión RD$": False,
-                        "Nombre": False,
-                    },
-                    color_discrete_sequence=["#0d6efd"],
-                    zoom=9,
-                    height=600,
-                )
-
-                # Encuadrar automáticamente los puntos visibles
-                fig_map.update_layout(
-                    mapbox=dict(
-                        style="open-street-map",
-                        center={
-                            "lat": float(df_mapa["lat"].mean()),
-                            "lon": float(df_mapa["lon"].mean()),
+                # API MODERNA COMPATIBLE CON PLOTLY RECIENTE (px.scatter_map)
+                # Soporta fallback automático si la versión instalada aún usa px.scatter_mapbox
+                if hasattr(px, "scatter_map"):
+                    fig_map = px.scatter_map(
+                        df_mapa,
+                        lat="lat",
+                        lon="lon",
+                        hover_name="Proyecto",
+                        hover_data={
+                            "Código": True,
+                            "Inversión": True,
+                            "lat": False,
+                            "lon": False,
+                            "Inversión RD$": False,
+                            "Nombre": False,
                         },
-                        zoom=9 if len(df_mapa) == 1 else None,
-                    ),
-                    margin=dict(l=0, r=0, t=0, b=0),
-                )
-
-                # Ajustar el encuadre a todos los marcadores
-                if len(df_mapa) > 1:
+                        color_discrete_sequence=["#0d6efd"],
+                        zoom=9,
+                        height=600,
+                    )
                     fig_map.update_layout(
-                        mapbox=dict(fitbounds="locations")
+                        map_style="open-street-map",
+                        margin=dict(l=0, r=0, t=0, b=0),
+                    )
+                else:
+                    # Fallback para instalaciones con versiones previas de Plotly Express
+                    fig_map = px.scatter_mapbox(
+                        df_mapa,
+                        lat="lat",
+                        lon="lon",
+                        hover_name="Proyecto",
+                        hover_data={
+                            "Código": True,
+                            "Inversión": True,
+                            "lat": False,
+                            "lon": False,
+                            "Inversión RD$": False,
+                            "Nombre": False,
+                        },
+                        color_discrete_sequence=["#0d6efd"],
+                        zoom=9,
+                        height=600,
+                    )
+                    fig_map.update_layout(
+                        mapbox_style="open-street-map",
+                        margin=dict(l=0, r=0, t=0, b=0),
                     )
 
                 st.plotly_chart(
