@@ -678,7 +678,7 @@ if menu == "Panel Ejecutivo por Proyecto":
 
 else:
     # -------------------------------------------------------------
-    # MAPA INTERACTIVO DE PROYECTOS EDEESTE (INVERSIÓN TOTAL REAL)
+    # MAPA INTERACTIVO CON MARCADORES RESALTADOS DE ALTO IMPACTO
     # -------------------------------------------------------------
     st.subheader("🗺️ Geoportal de Proyectos EDEESTE")
     st.caption("Cada marcador representa la ubicación geográfica del proyecto con su Inversión Total Real acumulada (Mano de Obra + Materiales SAP).")
@@ -741,6 +741,7 @@ else:
                 lon_centro = float(df_mapa_final["lon"].mean()) if not df_mapa_final.empty else -69.80
                 zoom_nivel = 10 if len(df_mapa_final) == 1 else 9.2
 
+                # Configuración de Marcadores Grandes y Color Naranja Vibrante (#D97706)
                 if hasattr(px, "scatter_map"):
                     fig_map = px.scatter_map(
                         df_mapa_final,
@@ -755,10 +756,16 @@ else:
                             "Inversión Total (RD$)": False,
                             "Nombre": False,
                         },
-                        color_discrete_sequence=["#0d6efd"],
+                        color_discrete_sequence=["#D97706"],  # Naranja Caluroso
                         zoom=zoom_nivel,
                         center={"lat": lat_centro, "lon": lon_centro},
                         height=600,
+                    )
+                    fig_map.update_traces(
+                        marker=dict(
+                            size=15,  # Puntos considerablemente más grandes y visibles
+                            opacity=0.9,
+                        )
                     )
                     fig_map.update_layout(
                         map_style="open-street-map",
@@ -778,10 +785,16 @@ else:
                             "Inversión Total (RD$)": False,
                             "Nombre": False,
                         },
-                        color_discrete_sequence=["#0d6efd"],
+                        color_discrete_sequence=["#D97706"],
                         zoom=zoom_nivel,
                         center={"lat": lat_centro, "lon": lon_centro},
                         height=600,
+                    )
+                    fig_map.update_traces(
+                        marker=dict(
+                            size=15,
+                            opacity=0.9,
+                        )
                     )
                     fig_map.update_layout(
                         mapbox_style="open-street-map",
