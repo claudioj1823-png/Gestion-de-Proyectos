@@ -192,7 +192,7 @@ if df_codigos is not None and not df_codigos.empty:
     lista_codigos = df_codigos[col_codigo].dropna().astype(str).str.strip().unique().tolist()
 
 codigo_seleccionado = st.sidebar.selectbox("Código de Proyecto:", ["Todos"] + lista_codigos)
-menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Relación Mano de Obra y Materiales", "Mapas de Ubicación"])
+menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Mapa Interactivo de Proyectos"])
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 RECARGAR DATOS"):
@@ -617,40 +617,77 @@ if menu == "Panel Ejecutivo por Proyecto":
     else:
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
-elif menu == "Relación Mano de Obra y Materiales":
-    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades (Hoja 3)")
-    if df_contratistas is not None and df_sap is not None:
-        df_c_mat = df_contratistas.copy()
-        col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
-        col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
-        
-        df_c_mat['Clean_Act'] = df_c_mat[col_act].fillna("").astype(str).str.strip().str.upper()
-        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
-        df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        
-        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
-        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
-        
-        df_sap_c = df_sap.copy()
-        df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        df_sap_c['Descripcion_Oficial'] = df_sap_c[col_desc_sap].fillna("").astype(str)
-        df_sap_c['Precio_Oficial'] = pd.to_numeric(df_sap_c[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
-        
-        df_sap_limpio = df_sap_c[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
-        df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
-        df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
-        
-        mostrar_tabla_html_ejecutiva(df_matriz_final)
-    else:
-        st.warning("No se encontraron los archivos de contratistas o precios SAP.")
-
 else:
-    st.subheader("🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE")
-    map_data = pd.DataFrame({
-        'lat': [18.4861, 18.5123, 18.4500, 18.5500],
-        'lon': [-69.8500, -69.8000, -69.6500, -69.7800],
-        'Proyecto': ['Proyecto Redes La Javilla', 'Ciudad Juan Bosch', 'Circuito SPER01', 'Rehabilitación LM3802R']
-    })
-    st.map(map_data)
-    st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
+    # -------------------------------------------------------------
+    # MÓDULO DE MAPA INTERACTIVO DE INVERSIÓN (GEOPORTAL EDEESTE)
+    # -------------------------------------------------------------
+    st.subheader("🗺️ Geoportal e Inversión Territorial en Zona EDEESTE")
+    st.markdown("Visualización geográfica de los proyectos activos según las coordenadas registradas en el sistema. Pase el cursor sobre los círculos para ver el detalle de la inversión.")
+    
+    if df_codigos is not None and not df_codigos.empty:
+        col_lat = next((c for c in df_codigos.columns if 'lat' in c.lower()), None)
+        col_lon = next((c for c in df_codigos.columns if 'lon' in c.lower() or 'lng' in c.lower()), None)
+        col_cod = df_codigos.columns[0]
+        col_nom = next((c for c in df_codigos.columns if 'nombre' in c.lower() or 'descripci' in c.lower()), df_codigos.columns[1] if len(df_codigos.columns)>1 else df_codigos.columns[0])
+        
+        if col_lat and col_lon:
+            map_list = []
+            for _, row in df_codigos.iterrows():
+                p_cod = str(row[col_cod]).strip()
+                p_nom = str(row[col_nom]).strip()
+                
+                val_lat = row[col_lat]
+                val_lon = row[col_lon]
+                
+                if pd.isna(val_lat) or pd.isna(val_lon) or str(val_lat).strip() == "" or str(val_lon).strip() == "":
+                    continue
+                
+                try:
+                    p_lat = float(val_lat)
+                    p_lon = float(val_lon)
+                except Exception:
+                    continue
+                
+                # Calcular Inversión Real del Proyecto para el Mapa
+                monto_p = 0.0
+                if df_mo is not None and not df_mo.empty:
+                    col_p_mo = next((c for c in df_mo.columns if 'proyecto' in c.lower()), df_mo.columns[-2])
+                    col_c_mo = next((c for c in df_mo.columns if 'costo total' in c.lower()), df_mo.columns[5])
+                    sub_mo = df_mo[df_mo[col_p_mo].astype(str).str.strip() == p_cod]
+                    if not sub_mo.empty:
+                        monto_p = pd.to_numeric(sub_mo[col_c_mo].astype(str).str.replace('$', '', regex=False).str.replace(',', '', regex=False), errors='coerce').sum()
+                
+                map_list.append({
+                    'Código': p_cod,
+                    'Proyecto': f"{p_cod} - {p_nom}",
+                    'lat': p_lat,
+                    'lon': p_lon,
+                    'Inversión RD$': monto_p if monto_p > 0 else 50000 # Valor base mínimo para visualización de burbuja
+                })
+            
+            df_mapa_real = pd.DataFrame(map_list)
+            
+            if not df_mapa_real.empty:
+                fig_map = px.scatter_mapbox(
+                    df_mapa_real,
+                    lat="lat",
+                    lon="lon",
+                    hover_name="Proyecto",
+                    hover_data={"Inversión RD$": ":,.2f", "lat": False, "lon": False, "Código": False},
+                    size="Inversión RD$",
+                    size_max=25,
+                    color="Inversión RD$",
+                    color_continuous_scale="Viridis",
+                    zoom=9,
+                    height=600
+                )
+                fig_map.update_layout(
+                    mapbox_style="carto-positron",
+                    margin={"r":0,"t":0,"l":0,"b":0}
+                )
+                st.plotly_chart(fig_map, use_container_width=True)
+                st.success(f"📍 Se han mapeado correctamente **{len(df_mapa_real)} proyectos activos** con coordenadas geográficas en EDEESTE.")
+            else:
+                st.warning("⚠️ No se encontraron coordenadas válidas cargadas en las columnas del archivo Excel.")
+        else:
+            st.warning("⚠️ No se detectaron las columnas de Latitud y Longitud en el archivo `Codigos de proyectos.xlsx`.")
