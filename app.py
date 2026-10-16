@@ -451,7 +451,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         st.markdown("---")
         
         # 3. DESGLOSE FINANCIERO Y OPERATIVO
-        st.markdown("### 📊 Desglose Financiero Y Operativo")
+        st.markdown("### 📊 Desglose Financiero y Operativo")
         
         df_grafico = pd.DataFrame({
             'Concepto': ['Mano de Obra', 'Materiales Instalados', 'Monto Invertido', 'Presupuesto Plan.'],
@@ -619,80 +619,193 @@ if menu == "Panel Ejecutivo por Proyecto":
 
 else:
     # -------------------------------------------------------------
-    # MÓDULO DE MAPA INTERACTIVO DE INVERSIÓN (GEOPORTAL EDEESTE)
+    # MAPA INTERACTIVO DE PROYECTOS EDEESTE
     # -------------------------------------------------------------
-    st.subheader("🗺️ Geoportal e Inversión Territorial en Zona EDEESTE")
-    st.markdown("Visualización geográfica de los proyectos activos según las coordenadas registradas en el sistema. Pase el cursor sobre los círculos para ver el detalle de la inversión.")
-    
-    if df_codigos is not None and not df_codigos.empty:
-        col_lat = next((c for c in df_codigos.columns if 'lat' in c.lower()), None)
-        col_lon = next((c for c in df_codigos.columns if 'lon' in c.lower() or 'lng' in c.lower()), None)
-        col_cod = df_codigos.columns[0]
-        col_nom = next((c for c in df_codigos.columns if 'nombre' in c.lower() or 'descripci' in c.lower()), df_codigos.columns[1] if len(df_codigos.columns)>1 else df_codigos.columns[0])
-        
-        if col_lat and col_lon:
-            map_list = []
-            for _, row in df_codigos.iterrows():
-                p_cod = str(row[col_cod]).strip()
-                p_nom = str(row[col_nom]).strip()
-                
-                val_lat = row[col_lat]
-                val_lon = row[col_lon]
-                
-                if pd.isna(val_lat) or pd.isna(val_lon) or str(val_lat).strip() == "" or str(val_lon).strip() == "":
-                    continue
-                
-                try:
-                    p_lat = float(val_lat)
-                    p_lon = float(val_lon)
-                except Exception:
-                    continue
-                
-                # Calcular Inversión Real del Proyecto
-                monto_p = 0.0
-                if df_mo is not None and not df_mo.empty:
-                    col_p_mo = next((c for c in df_mo.columns if 'proyecto' in c.lower()), df_mo.columns[-2])
-                    col_c_mo = next((c for c in df_mo.columns if 'costo total' in c.lower()), df_mo.columns[5])
-                    sub_mo = df_mo[df_mo[col_p_mo].astype(str).str.strip() == p_cod]
-                    if not sub_mo.empty:
-                        monto_p = pd.to_numeric(sub_mo[col_c_mo].astype(str).str.replace('$', '', regex=False).str.replace(',', '', regex=False), errors='coerce').sum()
-                
-                map_list.append({
-                    'Código': p_cod,
-                    'Proyecto': f"{p_cod} - {p_nom}",
-                    'lat': p_lat,
-                    'lon': p_lon,
-                    'Monto_Num': monto_p if monto_p > 0 else 100000,
-                    'Inversión RD$': f"RD$ {monto_p:,.2f}"
-                })
-            
-            df_mapa_real = pd.DataFrame(map_list)
-            
-            if not df_mapa_real.empty:
-                # Mapeo usando la API nativa de Plotly Express para Mapbox/OpenStreetMap de forma compatible
+    st.subheader("🗺️ Geoportal de Proyectos EDEESTE")
+    st.caption(
+        "Cada marcador representa un punto de referencia del proyecto, "
+        "no necesariamente el trazado completo de la red."
+    )
+
+    if df_codigos is None or df_codigos.empty:
+        st.error("No se pudo cargar Codigos de proyectos.xlsx.")
+
+    else:
+        # Detectar columnas
+        col_lat = next(
+            (c for c in df_codigos.columns if "lat" in c.lower()), None
+        )
+        col_lon = next(
+            (c for c in df_codigos.columns
+             if "lon" in c.lower() or "lng" in c.lower()), None
+        )
+        col_cod = next(
+            (c for c in df_codigos.columns
+             if "código" in c.lower()
+             or "codigo" in c.lower()
+             or "proyecto" in c.lower()),
+            df_codigos.columns[0]
+        )
+        col_nom = next(
+            (c for c in df_codigos.columns
+             if "nombre" in c.lower() or "descripci" in c.lower()),
+            None
+        )
+
+        if not col_lat or not col_lon:
+            st.error(
+                "No se encontraron las columnas de Latitud y Longitud "
+                "en Codigos de proyectos.xlsx."
+            )
+
+        else:
+            # Preparar proyectos y coordenadas
+            df_mapa = df_codigos.copy()
+            df_mapa["Código"] = (
+                df_mapa[col_cod].astype(str).str.strip()
+            )
+
+            if col_nom:
+                df_mapa["Nombre"] = (
+                    df_mapa[col_nom].fillna("").astype(str).str.strip()
+                )
+            else:
+                df_mapa["Nombre"] = ""
+
+            # Convertir coordenadas a números
+            df_mapa["lat"] = pd.to_numeric(
+                df_mapa[col_lat], errors="coerce"
+            )
+            df_mapa["lon"] = pd.to_numeric(
+                df_mapa[col_lon], errors="coerce"
+            )
+
+            # Descartar coordenadas vacías o fuera de rango
+            df_mapa = df_mapa.dropna(subset=["lat", "lon"]).copy()
+            df_mapa = df_mapa[
+                df_mapa["lat"].between(-90, 90)
+                & df_mapa["lon"].between(-180, 180)
+            ].copy()
+
+            # Filtro de proyecto: permite ver todos o uno solo
+            if codigo_seleccionado != "Todos":
+                df_mapa = df_mapa[
+                    df_mapa["Código"] == str(codigo_seleccionado).strip()
+                ].copy()
+
+            # Calcular inversión de mano de obra por proyecto
+            df_mapa["Inversión RD$"] = 0.0
+
+            if df_mo is not None and not df_mo.empty:
+                col_p_mo = next(
+                    (c for c in df_mo.columns
+                     if "código proyecto" in c.lower()
+                     or "codigo proyecto" in c.lower()
+                     or "proyecto" in c.lower()),
+                    None
+                )
+                col_c_mo = next(
+                    (c for c in df_mo.columns
+                     if "costo total" in c.lower()),
+                    None
+                )
+
+                if col_p_mo and col_c_mo:
+                    mo_mapa = df_mo.copy()
+                    mo_mapa["_Codigo"] = (
+                        mo_mapa[col_p_mo].astype(str).str.strip()
+                    )
+                    mo_mapa["_Costo"] = pd.to_numeric(
+                        mo_mapa[col_c_mo].astype(str)
+                        .str.replace("$", "", regex=False)
+                        .str.replace(",", "", regex=False)
+                        .str.strip(),
+                        errors="coerce"
+                    ).fillna(0)
+
+                    inversion = mo_mapa.groupby("_Codigo")["_Costo"].sum()
+
+                    df_mapa["Inversión RD$"] = (
+                        df_mapa["Código"].map(inversion).fillna(0)
+                    )
+
+            if df_mapa.empty:
+                st.warning(
+                    "No hay proyectos con coordenadas válidas "
+                    "para el filtro seleccionado."
+                )
+
+            else:
+                df_mapa["Proyecto"] = df_mapa.apply(
+                    lambda r: (
+                        f"{r['Código']} - {r['Nombre']}"
+                        if r["Nombre"] else r["Código"]
+                    ),
+                    axis=1
+                )
+
+                df_mapa["Inversión"] = df_mapa[
+                    "Inversión RD$"
+                ].apply(lambda x: f"RD$ {x:,.2f}")
+
+                # Mapa: tamaño uniforme para no sugerir valores falsos
                 fig_map = px.scatter_mapbox(
-                    df_mapa_real,
+                    df_mapa,
                     lat="lat",
                     lon="lon",
                     hover_name="Proyecto",
-                    hover_data={"Inversión RD$": True, "Monto_Num": False, "lat": False, "lon": False},
-                    size="Monto_Num",
-                    size_max=22,
+                    hover_data={
+                        "Código": True,
+                        "Inversión": True,
+                        "lat": False,
+                        "lon": False,
+                        "Inversión RD$": False,
+                        "Nombre": False,
+                    },
                     color_discrete_sequence=["#0d6efd"],
-                    zoom=9.2,
-                    center={"lat": 18.52, "lon": -69.80},
-                    height=600
+                    zoom=9,
+                    height=600,
                 )
-                
-                # Configuración de mapa abierto sin necesidad de tokens
+
+                # Encuadrar automáticamente los puntos visibles
                 fig_map.update_layout(
-                    mapbox_style="open-street-map",
-                    margin={"r":0,"t":0,"l":0,"b":0}
+                    mapbox=dict(
+                        style="open-street-map",
+                        center={
+                            "lat": float(df_mapa["lat"].mean()),
+                            "lon": float(df_mapa["lon"].mean()),
+                        },
+                        zoom=9 if len(df_mapa) == 1 else None,
+                    ),
+                    margin=dict(l=0, r=0, t=0, b=0),
                 )
-                
-                st.plotly_chart(fig_map, use_container_width=True)
-                st.success(f"📍 Se han mapeado correctamente **{len(df_mapa_real)} proyectos activos** con coordenadas geográficas e interactividad en EDEESTE.")
-            else:
-                st.warning("⚠️ No se encontraron coordenadas válidas cargadas en las columnas del archivo Excel.")
-        else:
-            st.warning("⚠️ No se detectaron las columnas de Latitud y Longitud en el archivo `Codigos de proyectos.xlsx`.")
+
+                # Ajustar el encuadre a todos los marcadores
+                if len(df_mapa) > 1:
+                    fig_map.update_layout(
+                        mapbox=dict(fitbounds="locations")
+                    )
+
+                st.plotly_chart(
+                    fig_map,
+                    use_container_width=True,
+                    key="mapa_proyectos_edeeste",
+                )
+
+                # Resumen de datos del mapa
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Proyectos visibles", len(df_mapa))
+                m2.metric(
+                    "Inversión MO registrada",
+                    f"RD$ {df_mapa['Inversión RD$'].sum():,.2f}"
+                )
+                m3.metric(
+                    "Proyectos sin inversión MO",
+                    int((df_mapa["Inversión RD$"] <= 0).sum())
+                )
+
+                st.caption(
+                    "La inversión mostrada corresponde únicamente a mano "
+                    "de obra calculada desde el archivo de ejecución; "
+                    "no incluye materiales."
+                )
