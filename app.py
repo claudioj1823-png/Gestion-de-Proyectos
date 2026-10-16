@@ -622,7 +622,7 @@ else:
     # MÓDULO DE MAPA INTERACTIVO DE INVERSIÓN (GEOPORTAL EDEESTE)
     # -------------------------------------------------------------
     st.subheader("🗺️ Geoportal e Inversión Territorial en Zona EDEESTE")
-    st.markdown("Visualización geográfica de los proyectos activos según las coordenadas registradas en el sistema. Pase el cursor sobre los puntos para ver el detalle de la inversión.")
+    st.markdown("Visualización geográfica de los proyectos activos con sus coordenadas reales registradas en el sistema.")
     
     if df_codigos is not None and not df_codigos.empty:
         col_lat = next((c for c in df_codigos.columns if 'lat' in c.lower()), None)
@@ -648,7 +648,7 @@ else:
                 except Exception:
                     continue
                 
-                # Calcular Inversión Real del Proyecto para el Mapa
+                # Calcular Inversión Real del Proyecto para el Resumen
                 monto_p = 0.0
                 if df_mo is not None and not df_mo.empty:
                     col_p_mo = next((c for c in df_mo.columns if 'proyecto' in c.lower()), df_mo.columns[-2])
@@ -662,31 +662,19 @@ else:
                     'Proyecto': f"{p_cod} - {p_nom}",
                     'lat': p_lat,
                     'lon': p_lon,
-                    'Inversión (RD$)': monto_p if monto_p > 0 else 100000
+                    'Inversión (RD$)': f"RD$ {monto_p:,.2f}"
                 })
             
             df_mapa_real = pd.DataFrame(map_list)
             
             if not df_mapa_real.empty:
-                fig_map = px.scatter_mapbox(
-                    df_mapa_real,
-                    lat="lat",
-                    lon="lon",
-                    hover_name="Proyecto",
-                    hover_data={"Inversión (RD$)": ":,.2f", "lat": False, "lon": False, "Código": False},
-                    size="Inversión (RD$)",
-                    size_max=25,
-                    color="Inversión (RD$)",
-                    color_continuous_scale="Blues",
-                    zoom=9,
-                    height=600
-                )
-                fig_map.update_layout(
-                    mapbox_style="open-street-map",
-                    margin={"r":0,"t":0,"l":0,"b":0}
-                )
-                st.plotly_chart(fig_map, use_container_width=True)
+                # Mapa nativo de Streamlit ultra estable y rápido
+                st.map(df_mapa_real, latitude="lat", longitude="lon", zoom=9, use_container_width=True)
+                
                 st.success(f"📍 Se han mapeado correctamente **{len(df_mapa_real)} proyectos activos** con coordenadas geográficas en EDEESTE.")
+                
+                st.markdown("### 📋 Listado de Proyectos Ubicados en el Geoportal")
+                mostrar_tabla_html_ejecutiva(df_mapa_real[['Código', 'Proyecto', 'Inversión (RD$)']])
             else:
                 st.warning("⚠️ No se encontraron coordenadas válidas cargadas en las columnas del archivo Excel.")
         else:
