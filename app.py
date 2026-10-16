@@ -192,7 +192,7 @@ if df_codigos is not None and not df_codigos.empty:
     lista_codigos = df_codigos[col_codigo].dropna().astype(str).str.strip().unique().tolist()
 
 codigo_seleccionado = st.sidebar.selectbox("Código de Proyecto:", ["Todos"] + lista_codigos)
-menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Relación Mano de Obra y Materiales", "Mapa Interactivo de Proyectos"])
+menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Mapa Interactivo de Proyectos"])
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 RECARGAR DATOS"):
@@ -672,34 +672,6 @@ if menu == "Panel Ejecutivo por Proyecto":
     else:
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
-elif menu == "Relación Mano de Obra y Materiales":
-    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades (Hoja 3)")
-    if df_contratistas is not None and df_sap is not None:
-        df_c_mat = df_contratistas.copy()
-        col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
-        col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
-        
-        df_c_mat['Clean_Act'] = df_c_mat[col_act].fillna("").astype(str).str.strip().str.upper()
-        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
-        df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        
-        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
-        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
-        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
-        
-        df_sap_c = df_sap.copy()
-        df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        df_sap_c['Descripcion_Oficial'] = df_sap_c[col_desc_sap].fillna("").astype(str)
-        df_sap_c['Precio_Oficial'] = pd.to_numeric(df_sap_c[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
-        
-        df_sap_limpio = df_sap_c[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
-        df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
-        df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
-        
-        mostrar_tabla_html_ejecutiva(df_matriz_final)
-    else:
-        st.warning("No se encontraron los archivos de contratistas o precios SAP.")
-
 else:
     # -------------------------------------------------------------
     # MAPA INTERACTIVO CON MARCADORES RESALTADOS Y TABLA POR ZONA/PROVINCIA
@@ -897,4 +869,4 @@ else:
                 
                 c_prov1, c_prov2 = st.columns(2)
                 c_prov1.info(f"📍 **Zona con Mayor Inversión:** {df_resumen_prov.iloc[0]['Provincia / Zona']} con **RD$ {df_resumen_prov.iloc[0]['Inversión Total (RD$)']:,.2f}**")
-                c_prov2.success(f"📊 **Total Zonas Cobertura:** {len(df_resumen_prov)} provincias/sectores monitoreados.")
+                c_prov2.success(f"📊 **Total Zonas Cobertura:** {len(df_resumen_prov)} provincias/sectores monitoreados.")              
