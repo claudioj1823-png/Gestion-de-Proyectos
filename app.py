@@ -205,6 +205,65 @@ def mostrar_tabla_html_ejecutiva(df_mostrar):
     html_str = df_mostrar.to_html(index=False, classes='tabla-ejecutiva', escape=False)
     st.markdown(f'<div class="tabla-ejecutiva-container">{html_str}</div>', unsafe_allow_html=True)
 
+def calcular_inversion_proyecto_completa(p_cod, df_mo_input, df_contratistas_input, df_sap_input, dict_fam):
+    monto_mo = 0.0
+    monto_mat = 0.0
+    
+    if df_mo_input is not None and not df_mo_input.empty:
+        col_proy_m = next((c for c in df_mo_input.columns if 'código proyecto' in c.lower() or 'codigo proyecto' in c.lower() or 'proyecto' in c.lower()), df_mo_input.columns[-2])
+        col_costo_m = next((c for c in df_mo_input.columns if c.lower().strip() == 'costo total'), None)
+        if not col_costo_m:
+            col_costo_m = next((c for c in df_mo_input.columns if 'costo total' in c.lower()), df_mo_input.columns[5])
+        
+        sub_mo = df_mo_input[df_mo_input[col_proy_m].astype(str).str.strip() == str(p_cod).strip()].copy()
+        
+        if not sub_mo.empty:
+            serie_c = sub_mo[col_costo_m].astype(str).str.replace('$', '', regex=False).str.replace(',', '', regex=False).str.strip()
+            monto_mo = pd.to_numeric(serie_c, errors='coerce').sum()
+            
+            if df_contratistas_input is not None and not df_contratistas_input.empty and df_sap_input is not None and not df_sap_input.empty:
+                col_act_mo = next((c for c in sub_mo.columns if c.lower().strip() == 'código' or 'actividad' in c.lower() or 'código' in c.lower()), sub_mo.columns[0])
+                col_cant_mo = next((c for c in sub_mo.columns if c.lower().strip() == 'cantidad' or 'cant' in c.lower()), sub_mo.columns[4])
+                
+                sub_mo['Actividad_Clean'] = sub_mo[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+                sub_mo['Cantidad_Num'] = pd.to_numeric(sub_mo[col_cant_mo], errors='coerce').fillna(0)
+                
+                cant_por_act = sub_mo.groupby('Actividad_Clean', as_index=False)['Cantidad_Num'].sum()
+                dict_cant = dict(zip(cant_por_act['Actividad_Clean'], cant_por_act['Cantidad_Num']))
+                
+                col_act_mat = next((c for c in df_contratistas_input.columns if 'actividad' in c.lower()), df_contratistas_input.columns[0])
+                col_sap_mat = next((c for c in df_contratistas_input.columns if 'sap' in c.lower() or 'código sap' in c.lower() or 'codigo sap' in c.lower()), df_contratistas_input.columns[4])
+                col_cant_mat = next((c for c in df_contratistas_input.columns if 'cantidad' in c.lower() or 'cant' in c.lower()), df_contratistas_input.columns[7])
+                
+                f_mat = df_contratistas_input.copy()
+                f_mat['Actividad_Clean'] = f_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
+                f_mat['Clean_SAP'] = f_mat[col_sap_mat].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+                f_mat['Cantidad_Unitaria_Num'] = pd.to_numeric(f_mat[col_cant_mat], errors='coerce').fillna(0)
+                
+                f_mat = f_mat[~f_mat['Clean_SAP'].isin(['', 'NAN', 'NONE', '0'])]
+                f_mat_clean = f_mat.groupby(['Actividad_Clean', 'Clean_SAP'], as_index=False)['Cantidad_Unitaria_Num'].first()
+                
+                df_filt = f_mat_clean[f_mat_clean['Actividad_Clean'].isin(dict_cant.keys())].copy()
+                if not df_filt.empty:
+                    df_filt['Cant_IDP'] = df_filt['Actividad_Clean'].map(dict_cant)
+                    cond = (df_filt['Actividad_Clean'] == '1VA-MT') & (df_filt['Clean_SAP'] == '1000130')
+                    df_filt["Cantidad_Total_Material"] = np.where(cond, df_filt['Cant_IDP'], df_filt['Cantidad_Unitaria_Num'] * df_filt['Cant_IDP'])
+                    
+                    col_sap_prec = next((c for c in df_sap_input.columns if 'sap' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_sap_input.columns[0])
+                    col_desc_sap = next((c for c in df_sap_input.columns if 'descripci' in c.lower()), df_sap_input.columns[1])
+                    col_precio_final = next((c for c in df_sap_input.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap_input.columns[2])
+                    
+                    s_copy = df_sap_input.copy()
+                    s_copy['Clean_SAP'] = s_copy[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+                    s_copy['Precio_Oficial'] = pd.to_numeric(s_copy[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
+                    
+                    s_clean = s_copy[['Clean_SAP', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
+                    m_merge = pd.merge(df_filt, s_clean, on='Clean_SAP', how='left')
+                    m_merge['Costo_Mat'] = m_merge['Cantidad_Total_Material'] * m_merge['Precio_Oficial']
+                    monto_mat = m_merge['Costo_Mat'].sum()
+
+    return monto_mo, monto_mat, (monto_mo + monto_mat)
+
 if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
         cod_clean = str(codigo_seleccionado).strip()
@@ -619,140 +678,72 @@ if menu == "Panel Ejecutivo por Proyecto":
 
 else:
     # -------------------------------------------------------------
-    # MAPA INTERACTIVO DE PROYECTOS EDEESTE
+    # MAPA INTERACTIVO DE PROYECTOS EDEESTE (INVERSIÓN TOTAL REAL)
     # -------------------------------------------------------------
     st.subheader("🗺️ Geoportal de Proyectos EDEESTE")
-    st.caption(
-        "Cada marcador representa un punto de referencia del proyecto, "
-        "no necesariamente el trazado completo de la red."
-    )
+    st.caption("Cada marcador representa la ubicación geográfica del proyecto con su Inversión Total Real acumulada (Mano de Obra + Materiales SAP).")
 
     if df_codigos is None or df_codigos.empty:
         st.error("No se pudo cargar Codigos de proyectos.xlsx.")
 
     else:
-        # Detectar columnas
-        col_lat = next(
-            (c for c in df_codigos.columns if "lat" in c.lower()), None
-        )
-        col_lon = next(
-            (c for c in df_codigos.columns
-             if "lon" in c.lower() or "lng" in c.lower()), None
-        )
-        col_cod = next(
-            (c for c in df_codigos.columns
-             if "código" in c.lower()
-             or "codigo" in c.lower()
-             or "proyecto" in c.lower()),
-            df_codigos.columns[0]
-        )
-        col_nom = next(
-            (c for c in df_codigos.columns
-             if "nombre" in c.lower() or "descripci" in c.lower()),
-            None
-        )
+        col_lat = next((c for c in df_codigos.columns if "lat" in c.lower()), None)
+        col_lon = next((c for c in df_codigos.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+        col_cod = next((c for c in df_codigos.columns if "código" in c.lower() or "codigo" in c.lower() or "proyecto" in c.lower()), df_codigos.columns[0])
+        col_nom = next((c for c in df_codigos.columns if "nombre" in c.lower() or "descripci" in c.lower()), None)
 
         if not col_lat or not col_lon:
-            st.error(
-                "No se encontraron las columnas de Latitud y Longitud "
-                "en Codigos de proyectos.xlsx."
-            )
+            st.error("No se encontraron las columnas de Latitud y Longitud en Codigos de proyectos.xlsx.")
 
         else:
-            # Preparar proyectos y coordenadas
             df_mapa = df_codigos.copy()
-            df_mapa["Código"] = (
-                df_mapa[col_cod].astype(str).str.strip()
-            )
+            df_mapa["Código"] = df_mapa[col_cod].astype(str).str.strip()
+            df_mapa["Nombre"] = df_mapa[col_nom].fillna("").astype(str).str.strip() if col_nom else ""
 
-            if col_nom:
-                df_mapa["Nombre"] = (
-                    df_mapa[col_nom].fillna("").astype(str).str.strip()
-                )
-            else:
-                df_mapa["Nombre"] = ""
+            df_mapa["lat"] = pd.to_numeric(df_mapa[col_lat], errors="coerce")
+            df_mapa["lon"] = pd.to_numeric(df_mapa[col_lon], errors="coerce")
 
-            # Convertir coordenadas a números
-            df_mapa["lat"] = pd.to_numeric(
-                df_mapa[col_lat], errors="coerce"
-            )
-            df_mapa["lon"] = pd.to_numeric(
-                df_mapa[col_lon], errors="coerce"
-            )
-
-            # Descartar coordenadas vacías o fuera de rango
             df_mapa = df_mapa.dropna(subset=["lat", "lon"]).copy()
-            df_mapa = df_mapa[
-                df_mapa["lat"].between(-90, 90)
-                & df_mapa["lon"].between(-180, 180)
-            ].copy()
+            df_mapa = df_mapa[df_mapa["lat"].between(-90, 90) & df_mapa["lon"].between(-180, 180)].copy()
 
-            # Filtro de proyecto: permite ver todos o uno solo
             if codigo_seleccionado != "Todos":
-                df_mapa = df_mapa[
-                    df_mapa["Código"] == str(codigo_seleccionado).strip()
-                ].copy()
+                df_mapa = df_mapa[df_mapa["Código"] == str(codigo_seleccionado).strip()].copy()
 
-            # Calcular inversión de mano de obra por proyecto
-            df_mapa["Inversión RD$"] = 0.0
+            # Cálculo de Inversión Total Real por proyecto (Mano de Obra + Materiales SAP)
+            mapa_registros = []
+            for _, r_m in df_mapa.iterrows():
+                p_c = r_m["Código"]
+                p_n = r_m["Nombre"]
+                p_la = r_m["lat"]
+                p_lo = r_m["lon"]
+                
+                mo_v, mat_v, tot_v = calcular_inversion_proyecto_completa(p_c, df_mo, df_contratistas, df_sap, dict_familia)
+                
+                mapa_registros.append({
+                    "Código": p_c,
+                    "Nombre": p_n,
+                    "lat": p_la,
+                    "lon": p_lo,
+                    "Proyecto": f"{p_c} - {p_n}" if p_n else p_c,
+                    "Inversión MO (RD$)": mo_v,
+                    "Inversión Materiales (RD$)": mat_v,
+                    "Inversión Total (RD$)": tot_v,
+                    "Inversión": f"RD$ {tot_v:,.2f}"
+                })
 
-            if df_mo is not None and not df_mo.empty:
-                col_p_mo = next(
-                    (c for c in df_mo.columns
-                     if "código proyecto" in c.lower()
-                     or "codigo proyecto" in c.lower()
-                     or "proyecto" in c.lower()),
-                    None
-                )
-                col_c_mo = next(
-                    (c for c in df_mo.columns
-                     if "costo total" in c.lower()),
-                    None
-                )
+            df_mapa_final = pd.DataFrame(mapa_registros)
 
-                if col_p_mo and col_c_mo:
-                    mo_mapa = df_mo.copy()
-                    mo_mapa["_Codigo"] = (
-                        mo_mapa[col_p_mo].astype(str).str.strip()
-                    )
-                    mo_mapa["_Costo"] = pd.to_numeric(
-                        mo_mapa[col_c_mo].astype(str)
-                        .str.replace("$", "", regex=False)
-                        .str.replace(",", "", regex=False)
-                        .str.strip(),
-                        errors="coerce"
-                    ).fillna(0)
-
-                    inversion = mo_mapa.groupby("_Codigo")["_Costo"].sum()
-
-                    df_mapa["Inversión RD$"] = (
-                        df_mapa["Código"].map(inversion).fillna(0)
-                    )
-
-            if df_mapa.empty:
-                st.warning(
-                    "No hay proyectos con coordenadas válidas "
-                    "para el filtro seleccionado."
-                )
+            if df_mapa_final.empty:
+                st.warning("No hay proyectos con coordenadas válidas para el filtro seleccionado.")
 
             else:
-                df_mapa["Proyecto"] = df_mapa.apply(
-                    lambda r: (
-                        f"{r['Código']} - {r['Nombre']}"
-                        if r["Nombre"] else r["Código"]
-                    ),
-                    axis=1
-                )
+                lat_centro = float(df_mapa_final["lat"].mean()) if not df_mapa_final.empty else 18.52
+                lon_centro = float(df_mapa_final["lon"].mean()) if not df_mapa_final.empty else -69.80
+                zoom_nivel = 10 if len(df_mapa_final) == 1 else 9.2
 
-                df_mapa["Inversión"] = df_mapa[
-                    "Inversión RD$"
-                ].apply(lambda x: f"RD$ {x:,.2f}")
-
-                # API MODERNA COMPATIBLE CON PLOTLY RECIENTE (px.scatter_map)
-                # Soporta fallback automático si la versión instalada aún usa px.scatter_mapbox
                 if hasattr(px, "scatter_map"):
                     fig_map = px.scatter_map(
-                        df_mapa,
+                        df_mapa_final,
                         lat="lat",
                         lon="lon",
                         hover_name="Proyecto",
@@ -761,11 +752,12 @@ else:
                             "Inversión": True,
                             "lat": False,
                             "lon": False,
-                            "Inversión RD$": False,
+                            "Inversión Total (RD$)": False,
                             "Nombre": False,
                         },
                         color_discrete_sequence=["#0d6efd"],
-                        zoom=9,
+                        zoom=zoom_nivel,
+                        center={"lat": lat_centro, "lon": lon_centro},
                         height=600,
                     )
                     fig_map.update_layout(
@@ -773,9 +765,8 @@ else:
                         margin=dict(l=0, r=0, t=0, b=0),
                     )
                 else:
-                    # Fallback para instalaciones con versiones previas de Plotly Express
                     fig_map = px.scatter_mapbox(
-                        df_mapa,
+                        df_mapa_final,
                         lat="lat",
                         lon="lon",
                         hover_name="Proyecto",
@@ -784,15 +775,20 @@ else:
                             "Inversión": True,
                             "lat": False,
                             "lon": False,
-                            "Inversión RD$": False,
+                            "Inversión Total (RD$)": False,
                             "Nombre": False,
                         },
                         color_discrete_sequence=["#0d6efd"],
-                        zoom=9,
+                        zoom=zoom_nivel,
+                        center={"lat": lat_centro, "lon": lon_centro},
                         height=600,
                     )
                     fig_map.update_layout(
                         mapbox_style="open-street-map",
+                        mapbox=dict(
+                            center={"lat": lat_centro, "lon": lon_centro},
+                            zoom=zoom_nivel
+                        ),
                         margin=dict(l=0, r=0, t=0, b=0),
                     )
 
@@ -802,20 +798,19 @@ else:
                     key="mapa_proyectos_edeeste",
                 )
 
-                # Resumen de datos del mapa
+                # Métricas Gerenciales Reales de Inversión Total
                 m1, m2, m3 = st.columns(3)
-                m1.metric("Proyectos visibles", len(df_mapa))
+                m1.metric("Proyectos visibles", len(df_mapa_final))
                 m2.metric(
-                    "Inversión MO registrada",
-                    f"RD$ {df_mapa['Inversión RD$'].sum():,.2f}"
+                    "Inversión Total Registrada",
+                    f"RD$ {df_mapa_final['Inversión Total (RD$)'].sum():,.2f}"
                 )
                 m3.metric(
-                    "Proyectos sin inversión MO",
-                    int((df_mapa["Inversión RD$"] <= 0).sum())
+                    "Proyectos sin inversión",
+                    int((df_mapa_final["Inversión Total (RD$)"] <= 0).sum())
                 )
 
                 st.caption(
-                    "La inversión mostrada corresponde únicamente a mano "
-                    "de obra calculada desde el archivo de ejecución; "
-                    "no incluye materiales."
+                    "La inversión mostrada corresponde a la Inversión Total acumulada "
+                    "(Mano de Obra ejec. + Materiales SAP valorizados en campo)."
                 )
