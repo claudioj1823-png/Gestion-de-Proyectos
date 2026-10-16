@@ -192,7 +192,7 @@ if df_codigos is not None and not df_codigos.empty:
     lista_codigos = df_codigos[col_codigo].dropna().astype(str).str.strip().unique().tolist()
 
 codigo_seleccionado = st.sidebar.selectbox("Código de Proyecto:", ["Todos"] + lista_codigos)
-menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Mapa Interactivo de Proyectos"])
+menu = st.sidebar.radio("🧭 MÓDULOS", ["Panel Ejecutivo por Proyecto", "Relación Mano de Obra y Materiales", "Mapa Interactivo de Proyectos"])
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 RECARGAR DATOS"):
@@ -280,10 +280,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                 if not match_p.empty:
                     nombre_proyecto_str = f"{cod_clean} - {match_p.iloc[0][col_desc_p]}"
         
-        # 1. ENCABEZADO PRINCIPAL
         st.markdown(f"<h4 style='color: #212529; margin-bottom: 15px;'>📌 PROYECTO: <b style='color: #0d6efd;'>{nombre_proyecto_str}</b></h4>", unsafe_allow_html=True)
         
-        # Procesamiento de Datos de Mano de Obra
         monto_mo = 0.0
         df_mo_proy = pd.DataFrame()
         if df_mo is not None and not df_mo.empty:
@@ -304,7 +302,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             serie_costos = df_mo_proy[col_costo_mo].astype(str).str.replace('$', '', regex=False).str.replace(',', '', regex=False).str.strip()
             monto_mo = pd.to_numeric(serie_costos, errors='coerce').sum()
 
-        # Presupuesto Planificado
         presupuesto_plan = 0.0
         if df_metas is not None and not df_metas.empty:
             col_proy_meta = next((c for c in df_metas.columns if 'proyecto' in c.lower() or 'código' in c.lower() or 'codigo' in c.lower()), df_metas.columns[0])
@@ -318,7 +315,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             if not val_presupuesto.empty:
                 presupuesto_plan = val_presupuesto.iloc[0]
 
-        # Materiales
         costo_materiales_total = 0.0
         df_materiales_mostrador = pd.DataFrame()
         df_mo_agrupado = pd.DataFrame()
@@ -676,9 +672,37 @@ if menu == "Panel Ejecutivo por Proyecto":
     else:
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
+elif menu == "Relación Mano de Obra y Materiales":
+    st.subheader("🧩 Matriz Relacional Unificada con Familias de Actividades (Hoja 3)")
+    if df_contratistas is not None and df_sap is not None:
+        df_c_mat = df_contratistas.copy()
+        col_act = next((c for c in df_c_mat.columns if 'actividad' in c.lower()), df_c_mat.columns[0])
+        col_sap = next((c for c in df_c_mat.columns if 'sap' in c.lower() or 'código sap' in c.lower()), df_c_mat.columns[4])
+        
+        df_c_mat['Clean_Act'] = df_c_mat[col_act].fillna("").astype(str).str.strip().str.upper()
+        df_c_mat['Familia'] = df_c_mat['Clean_Act'].map(dict_familia).fillna("OTRA")
+        df_c_mat['Clean_SAP'] = df_c_mat[col_sap].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+        
+        col_sap_prec = next((c for c in df_sap.columns if 'sap' in c.lower() or 'código' in c.lower()), df_sap.columns[0])
+        col_desc_sap = next((c for c in df_sap.columns if 'descripci' in c.lower()), df_sap.columns[1])
+        col_precio_final = next((c for c in df_sap.columns if 'precio' in c.lower() or 'costo' in c.lower()), df_sap.columns[2])
+        
+        df_sap_c = df_sap.copy()
+        df_sap_c['Clean_SAP'] = df_sap_c[col_sap_prec].fillna("").astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
+        df_sap_c['Descripcion_Oficial'] = df_sap_c[col_desc_sap].fillna("").astype(str)
+        df_sap_c['Precio_Oficial'] = pd.to_numeric(df_sap_c[col_precio_final].astype(str).str.replace("$", "").str.replace(",", ""), errors="coerce").fillna(0.0)
+        
+        df_sap_limpio = df_sap_c[['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']].drop_duplicates(subset=['Clean_SAP'])
+        df_c_dedup = df_c_mat.drop_duplicates(subset=[col_act, 'Clean_SAP']).copy()
+        df_matriz_final = pd.merge(df_c_dedup, df_sap_limpio, on='Clean_SAP', how='left')
+        
+        mostrar_tabla_html_ejecutiva(df_matriz_final)
+    else:
+        st.warning("No se encontraron los archivos de contratistas o precios SAP.")
+
 else:
     # -------------------------------------------------------------
-    # MAPA INTERACTIVO CON MARCADORES RESALTADOS DE ALTO IMPACTO
+    # MAPA INTERACTIVO CON MARCADORES RESALTADOS Y TABLA POR ZONA/PROVINCIA
     # -------------------------------------------------------------
     st.subheader("🗺️ Geoportal de Proyectos EDEESTE")
     st.caption("Cada marcador representa la ubicación geográfica del proyecto con su Inversión Total Real acumulada (Mano de Obra + Materiales SAP).")
@@ -691,6 +715,8 @@ else:
         col_lon = next((c for c in df_codigos.columns if "lon" in c.lower() or "lng" in c.lower()), None)
         col_cod = next((c for c in df_codigos.columns if "código" in c.lower() or "codigo" in c.lower() or "proyecto" in c.lower()), df_codigos.columns[0])
         col_nom = next((c for c in df_codigos.columns if "nombre" in c.lower() or "descripci" in c.lower()), None)
+        
+        col_prov = next((c for c in df_codigos.columns if "provin" in c.lower() or "municip" in c.lower() or "sector" in c.lower() or "zona" in c.lower() or "ubicaci" in c.lower()), None)
 
         if not col_lat or not col_lon:
             st.error("No se encontraron las columnas de Latitud y Longitud en Codigos de proyectos.xlsx.")
@@ -699,6 +725,42 @@ else:
             df_mapa = df_codigos.copy()
             df_mapa["Código"] = df_mapa[col_cod].astype(str).str.strip()
             df_mapa["Nombre"] = df_mapa[col_nom].fillna("").astype(str).str.strip() if col_nom else ""
+            
+            def inferir_zona(row):
+                txt = (str(row["Código"]) + " " + str(row["Nombre"])).lower()
+                if "boca chica" in txt or "caleta" in txt:
+                    return "Santo Domingo (Boca Chica)"
+                elif "juan bosch" in txt or "javilla" in txt or "este" in txt or "sper" in txt:
+                    return "Santo Domingo Este"
+                elif "norte" in txt or "mella" in txt or "luis" in txt:
+                    return "Santo Domingo Norte"
+                elif "san pedro" in txt or "spm" in txt or "consuelo" in txt:
+                    return "San Pedro de Macorís"
+                elif "monte plata" in txt or "yamas" in txt or "bayaguana" in txt:
+                    return "Monte Plata"
+                elif "romana" in txt or "guaymate" in txt:
+                    return "La Romana"
+                elif "higüey" in txt or "higuey" in txt or "bavaro" in txt or "veron" in txt or "nisibon" in txt:
+                    return "La Altagracia (Higüey)"
+                elif "seibo" in txt or "miches" in txt:
+                    return "El Seibo"
+                elif "hato mayor" in txt or "sabana" in txt:
+                    return "Hato Mayor"
+                else:
+                    lat_val = pd.to_numeric(row[col_lat], errors="coerce")
+                    lon_val = pd.to_numeric(row[col_lon], errors="coerce")
+                    if pd.notnull(lat_val) and pd.notnull(lon_val):
+                        if lon_val > -69.6:
+                            return "La Altagracia / El Seibo / Romana"
+                        elif -69.85 <= lon_val <= -69.6:
+                            return "Santo Domingo Este / Boca Chica"
+                        elif lat_val > 18.7:
+                            return "Monte Plata / Hato Mayor"
+                        else:
+                            return "Santo Domingo Metro"
+                    return "Zona Oriental EDEESTE"
+
+            df_mapa["Provincia_Zona"] = df_mapa.apply(inferir_zona, axis=1)
 
             df_mapa["lat"] = pd.to_numeric(df_mapa[col_lat], errors="coerce")
             df_mapa["lon"] = pd.to_numeric(df_mapa[col_lon], errors="coerce")
@@ -709,19 +771,20 @@ else:
             if codigo_seleccionado != "Todos":
                 df_mapa = df_mapa[df_mapa["Código"] == str(codigo_seleccionado).strip()].copy()
 
-            # Cálculo de Inversión Total Real por proyecto (Mano de Obra + Materiales SAP)
             mapa_registros = []
             for _, r_m in df_mapa.iterrows():
                 p_c = r_m["Código"]
                 p_n = r_m["Nombre"]
                 p_la = r_m["lat"]
                 p_lo = r_m["lon"]
+                p_z = r_m["Provincia_Zona"]
                 
                 mo_v, mat_v, tot_v = calcular_inversion_proyecto_completa(p_c, df_mo, df_contratistas, df_sap, dict_familia)
                 
                 mapa_registros.append({
                     "Código": p_c,
                     "Nombre": p_n,
+                    "Provincia / Zona": p_z,
                     "lat": p_la,
                     "lon": p_lo,
                     "Proyecto": f"{p_c} - {p_n}" if p_n else p_c,
@@ -741,7 +804,6 @@ else:
                 lon_centro = float(df_mapa_final["lon"].mean()) if not df_mapa_final.empty else -69.80
                 zoom_nivel = 10 if len(df_mapa_final) == 1 else 9.2
 
-                # Configuración de Marcadores Grandes y Color Naranja Vibrante (#D97706)
                 if hasattr(px, "scatter_map"):
                     fig_map = px.scatter_map(
                         df_mapa_final,
@@ -749,35 +811,7 @@ else:
                         lon="lon",
                         hover_name="Proyecto",
                         hover_data={
-                            "Código": True,
-                            "Inversión": True,
-                            "lat": False,
-                            "lon": False,
-                            "Inversión Total (RD$)": False,
-                            "Nombre": False,
-                        },
-                        color_discrete_sequence=["#D97706"],  # Naranja Caluroso
-                        zoom=zoom_nivel,
-                        center={"lat": lat_centro, "lon": lon_centro},
-                        height=600,
-                    )
-                    fig_map.update_traces(
-                        marker=dict(
-                            size=15,  # Puntos considerablemente más grandes y visibles
-                            opacity=0.9,
-                        )
-                    )
-                    fig_map.update_layout(
-                        map_style="open-street-map",
-                        margin=dict(l=0, r=0, t=0, b=0),
-                    )
-                else:
-                    fig_map = px.scatter_mapbox(
-                        df_mapa_final,
-                        lat="lat",
-                        lon="lon",
-                        hover_name="Proyecto",
-                        hover_data={
+                            "Provincia / Zona": True,
                             "Código": True,
                             "Inversión": True,
                             "lat": False,
@@ -788,42 +822,79 @@ else:
                         color_discrete_sequence=["#D97706"],
                         zoom=zoom_nivel,
                         center={"lat": lat_centro, "lon": lon_centro},
-                        height=600,
+                        height=580,
                     )
-                    fig_map.update_traces(
-                        marker=dict(
-                            size=15,
-                            opacity=0.9,
-                        )
+                    fig_map.update_traces(marker=dict(size=15, opacity=0.9))
+                    fig_map.update_layout(map_style="open-street-map", margin=dict(l=0, r=0, t=0, b=0))
+                else:
+                    fig_map = px.scatter_mapbox(
+                        df_mapa_final,
+                        lat="lat",
+                        lon="lon",
+                        hover_name="Proyecto",
+                        hover_data={
+                            "Provincia / Zona": True,
+                            "Código": True,
+                            "Inversión": True,
+                            "lat": False,
+                            "lon": False,
+                            "Inversión Total (RD$)": False,
+                            "Nombre": False,
+                        },
+                        color_discrete_sequence=["#D97706"],
+                        zoom=zoom_nivel,
+                        center={"lat": lat_centro, "lon": lon_centro},
+                        height=580,
                     )
+                    fig_map.update_traces(marker=dict(size=15, opacity=0.9))
                     fig_map.update_layout(
                         mapbox_style="open-street-map",
-                        mapbox=dict(
-                            center={"lat": lat_centro, "lon": lon_centro},
-                            zoom=zoom_nivel
-                        ),
+                        mapbox=dict(center={"lat": lat_centro, "lon": lon_centro}, zoom=zoom_nivel),
                         margin=dict(l=0, r=0, t=0, b=0),
                     )
 
-                st.plotly_chart(
-                    fig_map,
-                    use_container_width=True,
-                    key="mapa_proyectos_edeeste",
-                )
+                st.plotly_chart(fig_map, use_container_width=True, key="mapa_proyectos_edeeste")
 
-                # Métricas Gerenciales Reales de Inversión Total
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Proyectos visibles", len(df_mapa_final))
-                m2.metric(
-                    "Inversión Total Registrada",
-                    f"RD$ {df_mapa_final['Inversión Total (RD$)'].sum():,.2f}"
-                )
-                m3.metric(
-                    "Proyectos sin inversión",
-                    int((df_mapa_final["Inversión Total (RD$)"] <= 0).sum())
-                )
+                m2.metric("Inversión Total Registrada", f"RD$ {df_mapa_final['Inversión Total (RD$)'].sum():,.2f}")
+                m3.metric("Proyectos sin inversión", int((df_mapa_final["Inversión Total (RD$)"] <= 0).sum()))
 
-                st.caption(
-                    "La inversión mostrada corresponde a la Inversión Total acumulada "
-                    "(Mano de Obra ejec. + Materiales SAP valorizados en campo)."
-                )
+                st.markdown("---")
+                st.markdown("### 🏢 Resumen de Inversión por Provincia / Zona Territorial")
+                
+                df_resumen_prov = df_mapa_final.groupby("Provincia / Zona", as_index=False).agg({
+                    "Código": "count",
+                    "Inversión MO (RD$)": "sum",
+                    "Inversión Materiales (RD$)": "sum",
+                    "Inversión Total (RD$)": "sum"
+                })
+                
+                df_resumen_prov = df_resumen_prov.rename(columns={"Código": "Cantidad Proyectos"})
+                df_resumen_prov = df_resumen_prov.sort_values(by="Inversión Total (RD$)", ascending=False)
+                
+                total_empresa = df_resumen_prov["Inversión Total (RD$)"].sum()
+                if total_empresa > 0:
+                    df_resumen_prov["% Part. Inversión"] = (df_resumen_prov["Inversión Total (RD$)"] / total_empresa * 100).apply(lambda x: f"{x:.1f}%")
+                else:
+                    df_resumen_prov["% Part. Inversión"] = "0.0%"
+
+                df_tabla_prov_fmt = df_resumen_prov.copy()
+                df_tabla_prov_fmt["Mano de Obra (RD$)"] = df_tabla_prov_fmt["Inversión MO (RD$)"].apply(lambda x: f"RD$ {x:,.2f}")
+                df_tabla_prov_fmt["Materiales SAP (RD$)"] = df_tabla_prov_fmt["Inversión Materiales (RD$)"].apply(lambda x: f"RD$ {x:,.2f}")
+                df_tabla_prov_fmt["Inversión Total Real (RD$)"] = df_tabla_prov_fmt["Inversión Total (RD$)"].apply(lambda x: f"RD$ {x:,.2f}")
+                
+                cols_mostrar_prov = [
+                    "Provincia / Zona", 
+                    "Cantidad Proyectos", 
+                    "Mano de Obra (RD$)", 
+                    "Materiales SAP (RD$)", 
+                    "Inversión Total Real (RD$)", 
+                    "% Part. Inversión"
+                ]
+                
+                mostrar_tabla_html_ejecutiva(df_tabla_prov_fmt[cols_mostrar_prov])
+                
+                c_prov1, c_prov2 = st.columns(2)
+                c_prov1.info(f"📍 **Zona con Mayor Inversión:** {df_resumen_prov.iloc[0]['Provincia / Zona']} con **RD$ {df_resumen_prov.iloc[0]['Inversión Total (RD$)']:,.2f}**")
+                c_prov2.success(f"📊 **Total Zonas Cobertura:** {len(df_resumen_prov)} provincias/sectores monitoreados.")
