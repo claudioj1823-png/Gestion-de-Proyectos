@@ -335,8 +335,14 @@ if menu == "Panel Ejecutivo por Proyecto":
     monto_mo = 0.0
     df_mo_proy = pd.DataFrame()
     if df_mo is not None and not df_mo.empty:
-      col_proy_mo = buscar_columna_segura(df_mo, ["proyecto", "código proyecto"])
-      col_costo_mo = buscar_columna_segura(df_mo, ["costo total", "costo"])
+      col_proy_mo = buscar_columna_segura(
+          df_mo, ["código proyecto", "codigo proyecto", "proyecto"]
+      )
+
+      # Toma exactamente la columna 'Costo Total' (Columna F de tu Excel)
+      col_costo_mo = buscar_columna_segura(
+          df_mo, ["costo total", "monto total", "costo_total"]
+      )
 
       if col_proy_mo and col_costo_mo:
         df_mo_proy = df_mo[
@@ -477,9 +483,11 @@ if menu == "Panel Ejecutivo por Proyecto":
           fuente_mat = fuente_mat[
               ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
           ]
+          
           fuente_mat_clean = fuente_mat.groupby(
               ["Actividad_Clean", "Clean_SAP"], as_index=False
           )["Cantidad_Unitaria_Num"].first()
+
           df_filtrado = fuente_mat_clean[
               fuente_mat_clean["Actividad_Clean"].isin(dict_cant_mo.keys())
           ].copy()
@@ -1009,7 +1017,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
       )
       st.stop()
 
-    # FILTRO ESTRICTO EXCLUSIVO DE COCCIA
     df_mo_coccia = df_mo[
         df_mo[col_contratista]
         .astype(str)
@@ -1018,8 +1025,35 @@ elif menu == "Auditoría de Almacén (Coccia)":
         .str.contains("COCCIA|CEBALLOS", na=False)
     ].copy()
 
+    if "Fecha_Parsed" in df_mo_coccia.columns:
+      if ano_sel != "Todos":
+        df_mo_coccia = df_mo_coccia[
+            df_mo_coccia["Fecha_Parsed"].dt.year == int(ano_sel)
+        ]
+      if mes_sel != "Todos":
+        meses_dict = {
+            "Enero": 1,
+            "Febrero": 2,
+            "Marzo": 3,
+            "Abril": 4,
+            "Mayo": 5,
+            "Junio": 6,
+            "Julio": 7,
+            "Agosto": 8,
+            "Septiembre": 9,
+            "Octubre": 10,
+            "Noviembre": 11,
+            "Diciembre": 12,
+        }
+        df_mo_coccia = df_mo_coccia[
+            df_mo_coccia["Fecha_Parsed"].dt.month == meses_dict.get(mes_sel, 0)
+        ]
+
     if df_mo_coccia.empty:
-      st.warning("⚠️ No se encontraron registros de mano de obra para COCCIA.")
+      st.warning(
+          "⚠️ No se encontraron registros de mano de obra para COCCIA con los"
+          " filtros seleccionados."
+      )
       st.stop()
 
     col_proy = buscar_columna_segura(
@@ -1037,10 +1071,19 @@ elif menu == "Auditoría de Almacén (Coccia)":
         .tolist()
     )
 
+    opciones_auditoria = ["Todos"] + sorted(proyectos_coccia)
+    index_defecto = 0
+    if (
+        codigo_seleccionado != "Todos"
+        and codigo_seleccionado in opciones_auditoria
+    ):
+      index_defecto = opciones_auditoria.index(codigo_seleccionado)
+
     proy_auditoria = st.selectbox(
         "🎯 Seleccione el Proyecto de Coccia a Auditar (o 'Todos' para"
         " consolidado):",
-        ["Todos"] + sorted(proyectos_coccia),
+        opciones_auditoria,
+        index=index_defecto,
     )
 
     df_mo_filtrado = df_mo_coccia.copy()
@@ -1063,7 +1106,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
         df_mo_filtrado[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
     )
 
-    # Suma exacta por actividad ejecutada por COCCIA (ej. 1POHA-06 = 429)
     df_agrup_mo = df_mo_filtrado.groupby("Actividad_Clean", as_index=False)[
         "Cantidad_Num"
     ].sum()
@@ -1071,7 +1113,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
         zip(df_agrup_mo["Actividad_Clean"], df_agrup_mo["Cantidad_Num"])
     )
 
-    # Procesar Matriz de Materiales (Eliminando duplicidad de contratas sin perder los múltiples materiales por actividad)
     fuente_mat = df_contratistas.copy()
     col_act_mat = buscar_columna_segura(fuente_mat, ["actividad"])
     col_sap_mat = buscar_columna_segura(fuente_mat, ["sap", "código sap"])
@@ -1102,8 +1143,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
         ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
     ]
 
-    # Agrupación por Actividad y Código SAP para conservar todos los materiales componentes (tornillos, aisladores, etc.)
-    # eliminando únicamente las filas duplicadas de otras contratas.
     matriz_unificada = fuente_mat_clean.groupby(
         ["Actividad_Clean", "Clean_SAP"], as_index=False
     )["Cant_Unitaria"].max()
