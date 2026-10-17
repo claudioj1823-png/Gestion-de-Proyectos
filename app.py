@@ -434,7 +434,7 @@ def calcular_materiales_de_df_mo(df_mo_sub):
 
 
 # =====================================================================
-# MÓDULO 1: PANEL EJECUTIVO POR PROYECTO
+# MÓDULO 1: PANEL EJECUTIVO POR PROYECTO (INTACTO)
 # =====================================================================
 if menu == "Panel Ejecutivo por Proyecto":
   if codigo_seleccionado != "Todos":
@@ -1002,7 +1002,7 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (OPTIMIZADO: CENTRADO EN RD, PUNTOS GRANDES Y DETECCIÓN DE ZONA)
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (GEOCODIFICACIÓN AUTOMÁTICA POR COORDENADAS)
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
@@ -1019,26 +1019,12 @@ elif menu == "Mapa Interactivo de Proyectos":
         df_codigos, ["nombre", "descripci", "descripcion"]
     )
 
-    # Buscador expandido para capturar la provincia / municipio / zona real en tu Excel
-    col_zona_map = buscar_columna_segura(df_codigos, [
-        "provincia",
-        "municipio",
-        "sector",
-        "regional",
-        "ubicacion",
-        "localidad",
-        "oficina",
-        "gerencia",
-        "zona",
-    ])
-
     if col_lat and col_lon and col_proy_map:
       df_mapa = df_codigos.copy()
       df_mapa["Clean_Proy"] = df_mapa[col_proy_map].astype(str).str.strip()
       df_mapa["lat"] = df_mapa[col_lat].apply(parsear_numero_seguro)
       df_mapa["lon"] = df_mapa[col_lon].apply(parsear_numero_seguro)
 
-      # Filtrar coordenadas válidas
       df_mapa = df_mapa[
           (df_mapa["lat"] != 0.0)
           & (df_mapa["lon"] != 0.0)
@@ -1092,16 +1078,28 @@ elif menu == "Mapa Interactivo de Proyectos":
             else df_mapa["Clean_Proy"]
         )
 
-        # Nombre real de la zona/municipio extraído del Excel
-        if col_zona_map:
-          df_mapa["Zona_Nombre"] = (
-              df_mapa[col_zona_map]
-              .fillna("Zona no especificada")
-              .astype(str)
-              .str.strip()
-          )
-        else:
-          df_mapa["Zona_Nombre"] = "Zona EDEESTE"
+        # LÓGICA DE DEDUCCIÓN DE ZONA BASADA EN LATITUD Y LONGITUD
+        def asignar_zona_por_coordenadas(lat, lon):
+          if 18.40 <= lat <= 18.48 and -69.65 <= lon <= -69.50:
+            return "Boca Chica / Caleta"
+          elif 18.42 <= lat <= 18.52 and -69.95 <= lon <= -69.82:
+            return "Santo Domingo Este (SDE)"
+          elif 18.45 <= lat <= 18.58 and -69.83 <= lon <= -69.75:
+            return "San Luis / Guerra"
+          elif 18.43 <= lat <= 18.55 and -69.52 <= lon <= -69.25:
+            return "San Pedro de Macorís"
+          elif 18.50 <= lat <= 18.75 and -69.95 <= lon <= -69.70:
+            return "Santo Domingo Norte / Villa Mella"
+          elif 18.70 <= lat <= 19.05 and -70.15 <= lon <= -69.60:
+            return "Monte Plata / Yamasá"
+          elif 18.35 <= lat <= 18.55 and -69.25 <= lon <= -68.80:
+            return "La Romana / Higüey"
+          else:
+            return "Zona EDEESTE (General)"
+
+        df_mapa["Zona_Nombre"] = df_mapa.apply(
+            lambda r: asignar_zona_por_coordenadas(r["lat"], r["lon"]), axis=1
+        )
 
         if codigo_seleccionado != "Todos":
           df_mapa = df_mapa[
@@ -1112,7 +1110,7 @@ elif menu == "Mapa Interactivo de Proyectos":
           df_mapa["Hover_Txt"] = df_mapa.apply(
               lambda r: (
                   f"<b>Proyecto:</b> {r['Clean_Proy']} - {r['Nombre_Proyecto']}<br>"
-                  f"<b>Zona / Sector:</b> {r['Zona_Nombre']}<br>"
+                  f"<b>Zona Detectada:</b> {r['Zona_Nombre']}<br>"
                   f"<b>Mano de Obra:</b> RD$ {r['Mano_Obra_RD']:,.2f}<br>"
                   f"<b>Materiales SAP:</b> RD$ {r['Materiales_RD']:,.2f}<br>"
                   f"<b>Inversión Total:</b> RD$"
@@ -1121,7 +1119,7 @@ elif menu == "Mapa Interactivo de Proyectos":
               axis=1,
           )
 
-          # Calcular centro dinámico exacto de República Dominicana
+          # Centrado directo sobre RD (lat: ~18.5, lon: ~-69.8)
           lat_center = (
               df_mapa["lat"].mean()
               if codigo_seleccionado == "Todos"
@@ -1132,19 +1130,14 @@ elif menu == "Mapa Interactivo de Proyectos":
               if codigo_seleccionado == "Todos"
               else df_mapa["lon"].iloc[0]
           )
-          zoom_level = 8.8 if codigo_seleccionado == "Todos" else 13.0
+          zoom_level = 9.2 if codigo_seleccionado == "Todos" else 13.0
 
-          # Plotly Scattermap con PUNTOS GRANDES y CENTRADO EN RD
           fig_map = go.Figure(
               go.Scattermap(
                   lat=df_mapa["lat"],
                   lon=df_mapa["lon"],
                   mode="markers",
-                  marker=dict(
-                      size=16,  # Puntos grandes y claramente visibles
-                      color="#0d6efd",
-                      opacity=0.9,
-                  ),
+                  marker=dict(size=16, color="#0d6efd", opacity=0.9),
                   hoverinfo="text",
                   text=df_mapa["Hover_Txt"],
               )
@@ -1163,7 +1156,9 @@ elif menu == "Mapa Interactivo de Proyectos":
           st.plotly_chart(fig_map, use_container_width=True)
 
           st.markdown("---")
-          st.markdown("### 🏙️ Resumen de Inversión Presupuestaria por Zona")
+          st.markdown(
+              "### 🏙️ Resumen de Inversión Presupuestaria por Zona (Geolocalizada)"
+          )
 
           df_resumen_zona = (
               df_mapa.groupby("Zona_Nombre", as_index=False)
@@ -1175,7 +1170,7 @@ elif menu == "Mapa Interactivo de Proyectos":
               })
               .rename(
                   columns={
-                      "Zona_Nombre": "Zona / Municipio / Sector",
+                      "Zona_Nombre": "Zona / Municipio Detectado",
                       "Clean_Proy": "Cantidad de Proyectos",
                   }
               )
@@ -1194,7 +1189,7 @@ elif menu == "Mapa Interactivo de Proyectos":
 
           df_resumen_zona_disp = df_resumen_zona_disp[
               [
-                  "Zona / Municipio / Sector",
+                  "Zona / Municipio Detectado",
                   "Cantidad de Proyectos",
                   "Mano de Obra",
                   "Materiales SAP",
@@ -1219,7 +1214,7 @@ elif menu == "Mapa Interactivo de Proyectos":
     st.warning("⚠️ Archivo de Códigos de Proyecto no cargado.")
 
 # =====================================================================
-# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — DESGLOSE POR PROYECTO + TOTAL
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — DESGLOSE POR PROYECTO + TOTAL (INTACTO)
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
   st.subheader(
