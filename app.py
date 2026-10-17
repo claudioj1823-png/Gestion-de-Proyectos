@@ -1002,27 +1002,190 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTO
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (CON HOVER INTERACTIVO Y RESUMEN POR ZONA)
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
-      "🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE"
+      "🗺️ Ubicación Geográfica de Proyectos en Zona de Concesión EDEESTE"
   )
-  map_data = pd.DataFrame({
-      "lat": [18.4861, 18.5123, 18.4500, 18.5500],
-      "lon": [-69.8500, -69.8000, -69.6500, -69.7800],
-      "Proyecto": [
-          "Proyecto Redes La Javilla",
-          "Ciudad Juan Bosch",
-          "Circuito SPER01",
-          "Rehabilitación LM3802R",
-      ],
-  })
-  st.map(map_data)
-  st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
+
+  if df_codigos is not None and not df_codigos.empty:
+    col_lat = buscar_columna_segura(df_codigos, ["lat", "latitud"])
+    col_lon = buscar_columna_segura(df_codigos, ["lon", "longitud"])
+    col_proy_map = buscar_columna_segura(
+        df_codigos, ["proyecto", "código", "codigo"]
+    )
+    col_desc_map = buscar_columna_segura(
+        df_codigos, ["nombre", "descripci", "descripcion"]
+    )
+    col_zona_map = buscar_columna_segura(
+        df_codigos, ["zona", "municipio", "provincia", "regional"]
+    )
+
+    if col_lat and col_lon and col_proy_map:
+      df_mapa = df_codigos.copy()
+      df_mapa["Clean_Proy"] = df_mapa[col_proy_map].astype(str).str.strip()
+      df_mapa["lat"] = df_mapa[col_lat].apply(parsear_numero_seguro)
+      df_mapa["lon"] = df_mapa[col_lon].apply(parsear_numero_seguro)
+
+      df_mapa = df_mapa[
+          (df_mapa["lat"] != 0.0)
+          & (df_mapa["lon"] != 0.0)
+          & df_mapa["lat"].notna()
+          & df_mapa["lon"].notna()
+      ].copy()
+
+      if not df_mapa.empty:
+        monto_mo_dict = {}
+        monto_mat_dict = {}
+
+        if df_mo is not None and not df_mo.empty:
+          col_proy_mo = buscar_columna_segura(
+              df_mo, ["código proyecto", "codigo proyecto", "proyecto"]
+          )
+          col_costo_mo = buscar_columna_segura(
+              df_mo, ["costo total", "monto total", "costo_total"]
+          )
+
+          if col_proy_mo and col_costo_mo:
+            df_mo_copy = df_mo.copy()
+            df_mo_copy["Clean_Proy"] = (
+                df_mo_copy[col_proy_mo].astype(str).str.strip()
+            )
+            df_mo_copy["Costo_Num"] = df_mo_copy[col_costo_mo].apply(
+                parsear_numero_seguro
+            )
+
+            mo_group = df_mo_copy.groupby("Clean_Proy")["Costo_Num"].sum()
+            monto_mo_dict = mo_group.to_dict()
+
+            for pid in df_mapa["Clean_Proy"].unique():
+              df_sub_p = df_mo_copy[df_mo_copy["Clean_Proy"] == pid]
+              if not df_sub_p.empty:
+                _, c_mat = calcular_materiales_de_df_mo(df_sub_p)
+                monto_mat_dict[pid] = c_mat
+
+        df_mapa["Mano_Obra_RD"] = (
+            df_mapa["Clean_Proy"].map(monto_mo_dict).fillna(0.0)
+        )
+        df_mapa["Materiales_RD"] = (
+            df_mapa["Clean_Proy"].map(monto_mat_dict).fillna(0.0)
+        )
+        df_mapa["Inversion_Total_RD"] = (
+            df_mapa["Mano_Obra_RD"] + df_mapa["Materiales_RD"]
+        )
+
+        df_mapa["Nombre_Proyecto"] = (
+            df_mapa[col_desc_map].fillna("Sin nombre")
+            if col_desc_map
+            else df_mapa["Clean_Proy"]
+        )
+        df_mapa["Zona_Nombre"] = (
+            df_mapa[col_zona_map].fillna("Zona General")
+            if col_zona_map
+            else "Zona EDEESTE"
+        )
+
+        if codigo_seleccionado != "Todos":
+          df_mapa = df_mapa[
+              df_mapa["Clean_Proy"] == str(codigo_seleccionado).strip()
+          ]
+
+        if not df_mapa.empty:
+          df_mapa["Hover_Txt"] = df_mapa.apply(
+              lambda r: (
+                  f"<b>Proyecto:</b> {r['Clean_Proy']} - {r['Nombre_Proyecto']}<br>"
+                  f"<b>Zona:</b> {r['Zona_Nombre']}<br>"
+                  f"<b>Mano de Obra:</b> RD$ {r['Mano_Obra_RD']:,.2f}<br>"
+                  f"<b>Materiales SAP:</b> RD$ {r['Materiales_RD']:,.2f}<br>"
+                  f"<b>Inversión Total:</b> RD$"
+                  f" {r['Inversion_Total_RD']:,.2f}"
+              ),
+              axis=1,
+          )
+
+          fig_map = px.scatter_mapbox(
+              df_mapa,
+              lat="lat",
+              lon="lon",
+              hover_name="Clean_Proy",
+              hover_data={"lat": False, "lon": False},
+              color_discrete_sequence=["#0d6efd"],
+              size_max=15,
+              zoom=9 if codigo_seleccionado != "Todos" else 8,
+              height=520,
+          )
+
+          fig_map.update_traces(
+              hovertemplate="%{customdata[0]}<extra></extra>",
+              customdata=df_mapa[["Hover_Txt"]],
+          )
+
+          fig_map.update_layout(
+              mapbox_style="open-street-map",
+              margin={"r": 0, "t": 10, "l": 0, "b": 0},
+          )
+
+          st.plotly_chart(fig_map, use_container_width=True)
+
+          st.markdown("---")
+          st.markdown("### 🏙️ Resumen de Inversión Presupuestaria por Zona")
+
+          df_resumen_zona = (
+              df_mapa.groupby("Zona_Nombre", as_index=False)
+              .agg({
+                  "Clean_Proy": "count",
+                  "Mano_Obra_RD": "sum",
+                  "Materiales_RD": "sum",
+                  "Inversion_Total_RD": "sum",
+              })
+              .rename(
+                  columns={
+                      "Zona_Nombre": "Zona / Municipio",
+                      "Clean_Proy": "Cantidad de Proyectos",
+                  }
+              )
+          )
+
+          df_resumen_zona_disp = df_resumen_zona.copy()
+          df_resumen_zona_disp["Mano de Obra"] = df_resumen_zona_disp[
+              "Mano_Obra_RD"
+          ].apply(lambda x: f"RD$ {x:,.2f}")
+          df_resumen_zona_disp["Materiales SAP"] = df_resumen_zona_disp[
+              "Materiales_RD"
+          ].apply(lambda x: f"RD$ {x:,.2f}")
+          df_resumen_zona_disp["Inversión Total"] = df_resumen_zona_disp[
+              "Inversion_Total_RD"
+          ].apply(lambda x: f"RD$ {x:,.2f}")
+
+          df_resumen_zona_disp = df_resumen_zona_disp[
+              [
+                  "Zona / Municipio",
+                  "Cantidad de Proyectos",
+                  "Mano de Obra",
+                  "Materiales SAP",
+                  "Inversión Total",
+              ]
+          ]
+
+          mostrar_tabla_html_ejecutiva(df_resumen_zona_disp)
+        else:
+          st.warning(
+              f"⚠️ El proyecto '{codigo_seleccionado}' no posee coordenadas"
+              " geográficas para graficar."
+          )
+      else:
+        st.warning("⚠️ No se encontraron coordenadas válidas en el archivo.")
+    else:
+      st.error(
+          "⚠️ Faltan columnas de Latitud, Longitud o Código en 'Codigos de"
+          " proyectos.xlsx'."
+      )
+  else:
+    st.warning("⚠️ Archivo de Códigos de Proyecto no cargado.")
 
 # =====================================================================
-# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — DESGLOSE POR PROYECTO + TOTAL GENERAL
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — DESGLOSE POR PROYECTO + TOTAL
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
   st.subheader(
@@ -1048,7 +1211,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
       )
       st.stop()
 
-    # 1. FILTRAR EXCLUSIVAMENTE LOS REGISTROS DE COCCIA
     df_mo_coccia_puro = df_mo[
         df_mo[col_contratista]
         .astype(str)
@@ -1095,7 +1257,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
     if not col_proy_mo:
       col_proy_mo = df_mo_coccia_puro.columns[-2]
 
-    # Identificar la columna de descripción del proyecto si existe
     col_desc_proy_mo = buscar_columna_segura(
         df_mo_coccia_puro, ["nombre proyect", "nombre proyecto", "descripcion"]
     )
@@ -1116,13 +1277,11 @@ elif menu == "Auditoría de Almacén (Coccia)":
 
     lista_df_materiales_todos = []
 
-    # Bucle por cada proyecto donde trabajó Coccia
     for proj_id in proyectos_de_coccia:
       df_mo_un_proyecto = df_mo_coccia_puro[
           df_mo_coccia_puro[col_proy_mo].astype(str).str.strip() == proj_id
       ].copy()
 
-      # Obtener nombre descriptivo del proyecto si está disponible
       nombre_proj_desc = proj_id
       if col_desc_proy_mo and not df_mo_un_proyecto.empty:
         nombres_unicos = (
@@ -1132,25 +1291,37 @@ elif menu == "Auditoría de Almacén (Coccia)":
           nombre_proj_desc = f"{proj_id} — {nombres_unicos[0]}"
 
       with st.expander(f"📁 Proyecto: {nombre_proj_desc}", expanded=False):
-        # 1. Mostrar Mano de Obra de Coccia en este proyecto
         st.markdown("##### 👷 Mano de Obra Ejecutada (Coccia)")
         col_act_mo = buscar_columna_segura(df_mo_un_proyecto, ["actividad", "código"])
         col_cant_mo = buscar_columna_segura(df_mo_un_proyecto, ["cantidad", "cant"])
-        
+
         if col_act_mo and col_cant_mo:
           df_mo_un_proyecto["Actividad_Clean"] = (
-              df_mo_un_proyecto[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+              df_mo_un_proyecto[col_act_mo]
+              .fillna("")
+              .astype(str)
+              .str.strip()
+              .str.upper()
           )
           df_mo_un_proyecto["Cantidad_Num"] = (
-              df_mo_un_proyecto[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
+              df_mo_un_proyecto[col_cant_mo]
+              .apply(parsear_numero_seguro)
+              .fillna(0)
           )
-          df_mo_resumen_proj = df_mo_un_proyecto.groupby("Actividad_Clean", as_index=False)["Cantidad_Num"].sum()
-          df_mo_resumen_proj.rename(columns={"Actividad_Clean": "Actividad", "Cantidad_Num": "Cantidad Ejecutada"}, inplace=True)
+          df_mo_resumen_proj = df_mo_un_proyecto.groupby(
+              "Actividad_Clean", as_index=False
+          )["Cantidad_Num"].sum()
+          df_mo_resumen_proj.rename(
+              columns={
+                  "Actividad_Clean": "Actividad",
+                  "Cantidad_Num": "Cantidad Ejecutada",
+              },
+              inplace=True,
+          )
           mostrar_tabla_html_ejecutiva(df_mo_resumen_proj)
         else:
           st.info("No se pudo estructurar el detalle de mano de obra.")
 
-        # 2. Calcular Materiales para este proyecto
         st.markdown("##### 🛠️ Materiales SAP Correspondientes")
         df_mat_proj, costo_proj = calcular_materiales_de_df_mo(df_mo_un_proyecto)
 
@@ -1158,9 +1329,15 @@ elif menu == "Auditoría de Almacén (Coccia)":
           lista_df_materiales_todos.append(df_mat_proj)
 
           df_mat_display = df_mat_proj.copy()
-          df_mat_display["Cantidad Requerida"] = df_mat_display["Cantidad_Total_Material"].apply(lambda x: f"{x:,.2f}")
-          df_mat_display["Precio Unitario SAP"] = df_mat_display["Precio_Oficial"].apply(lambda x: f"RD$ {x:,.2f}")
-          df_mat_display["Costo Total Material"] = df_mat_display["Costo_Material"].apply(lambda x: f"RD$ {x:,.2f}")
+          df_mat_display["Cantidad Requerida"] = df_mat_display[
+              "Cantidad_Total_Material"
+          ].apply(lambda x: f"{x:,.2f}")
+          df_mat_display["Precio Unitario SAP"] = df_mat_display[
+              "Precio_Oficial"
+          ].apply(lambda x: f"RD$ {x:,.2f}")
+          df_mat_display["Costo Total Material"] = df_mat_display[
+              "Costo_Material"
+          ].apply(lambda x: f"RD$ {x:,.2f}")
 
           df_mat_display = df_mat_display.rename(
               columns={
@@ -1185,18 +1362,27 @@ elif menu == "Auditoría de Almacén (Coccia)":
 
     if len(lista_df_materiales_todos) > 0:
       df_todos_unidos = pd.concat(lista_df_materiales_todos, ignore_index=True)
-      df_global_mat = df_todos_unidos.groupby(
-          ["Clean_SAP", "Descripcion_Oficial"], as_index=False
-      ).agg({
-          "Cantidad_Total_Material": "sum",
-          "Precio_Oficial": "first",
-          "Costo_Material": "sum"
-      })
+      df_global_mat = (
+          df_todos_unidos.groupby(
+              ["Clean_SAP", "Descripcion_Oficial"], as_index=False
+          )
+          .agg({
+              "Cantidad_Total_Material": "sum",
+              "Precio_Oficial": "first",
+              "Costo_Material": "sum",
+          })
+      )
 
       df_global_display = df_global_mat.copy()
-      df_global_display["Cantidad Total Global"] = df_global_display["Cantidad_Total_Material"].apply(lambda x: f"{x:,.2f}")
-      df_global_display["Precio Unitario SAP"] = df_global_display["Precio_Oficial"].apply(lambda x: f"RD$ {x:,.2f}")
-      df_global_display["Costo Total Global"] = df_global_display["Costo_Material"].apply(lambda x: f"RD$ {x:,.2f}")
+      df_global_display["Cantidad Total Global"] = df_global_display[
+          "Cantidad_Total_Material"
+      ].apply(lambda x: f"{x:,.2f}")
+      df_global_display["Precio Unitario SAP"] = df_global_display[
+          "Precio_Oficial"
+      ].apply(lambda x: f"RD$ {x:,.2f}")
+      df_global_display["Costo Total Global"] = df_global_display[
+          "Costo_Material"
+      ].apply(lambda x: f"RD$ {x:,.2f}")
 
       df_global_display = df_global_display.rename(
           columns={
@@ -1214,8 +1400,11 @@ elif menu == "Auditoría de Almacén (Coccia)":
       ]
 
       costo_global_pesos = df_global_mat["Costo_Material"].sum()
-      st.metric("💰 Costo Total de Almacén (Consolidado Coccia)", f"RD$ {costo_global_pesos:,.2f}")
-      
+      st.metric(
+          "💰 Costo Total de Almacén (Consolidado Coccia)",
+          f"RD$ {costo_global_pesos:,.2f}",
+      )
+
       mostrar_tabla_html_ejecutiva(df_global_display)
 
       buffer = io.BytesIO()
@@ -1235,4 +1424,4 @@ elif menu == "Auditoría de Almacén (Coccia)":
     else:
       st.warning("No hay materiales consolidados para mostrar.")
   else:
-    st.error("Faltan archivos base para realizar la auditoría.")
+    st.error("Faltan archivos base para realizar la auditoría.")     
