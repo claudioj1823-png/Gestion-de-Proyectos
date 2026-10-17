@@ -1002,7 +1002,7 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (GEOCODIFICACIÓN AUTOMÁTICA POR COORDENADAS)
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (ZONAS AMPLIADAS Y CORREGIDAS)
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
@@ -1078,20 +1078,27 @@ elif menu == "Mapa Interactivo de Proyectos":
             else df_mapa["Clean_Proy"]
         )
 
-        # LÓGICA DE DEDUCCIÓN DE ZONA BASADA EN LATITUD Y LONGITUD
+        # RANGOS CORREGIDOS E INCLUYENDO BOCA CHICA / LA CALETA Y MONTE PLATA / GUANUMA
         def asignar_zona_por_coordenadas(lat, lon):
-          if 18.40 <= lat <= 18.48 and -69.65 <= lon <= -69.50:
-            return "Boca Chica / Caleta"
-          elif 18.42 <= lat <= 18.52 and -69.95 <= lon <= -69.82:
+          # Boca Chica / La Caleta (Ampliado hacia el oeste para cubrir Las Américas y el ITLA)
+          if 18.40 <= lat <= 18.50 and -69.72 <= lon <= -69.50:
+            return "Boca Chica / La Caleta"
+          # Santo Domingo Este
+          elif 18.42 <= lat <= 18.52 and -69.95 <= lon <= -69.72:
             return "Santo Domingo Este (SDE)"
-          elif 18.45 <= lat <= 18.58 and -69.83 <= lon <= -69.75:
+          # San Luis / Guerra
+          elif 18.45 <= lat <= 18.58 and -69.83 <= lon <= -69.72:
             return "San Luis / Guerra"
+          # San Pedro de Macorís
           elif 18.43 <= lat <= 18.55 and -69.52 <= lon <= -69.25:
             return "San Pedro de Macorís"
+          # Santo Domingo Norte / Villa Mella
           elif 18.50 <= lat <= 18.75 and -69.95 <= lon <= -69.70:
             return "Santo Domingo Norte / Villa Mella"
-          elif 18.70 <= lat <= 19.05 and -70.15 <= lon <= -69.60:
+          # Monte Plata / Yamasá / Guanuma
+          elif 18.60 <= lat <= 19.10 and -70.15 <= lon <= -69.50:
             return "Monte Plata / Yamasá"
+          # La Romana / Higüey
           elif 18.35 <= lat <= 18.55 and -69.25 <= lon <= -68.80:
             return "La Romana / Higüey"
           else:
@@ -1119,7 +1126,6 @@ elif menu == "Mapa Interactivo de Proyectos":
               axis=1,
           )
 
-          # Centrado directo sobre RD (lat: ~18.5, lon: ~-69.8)
           lat_center = (
               df_mapa["lat"].mean()
               if codigo_seleccionado == "Todos"
