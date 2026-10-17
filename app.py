@@ -1002,7 +1002,7 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (COMPATIBLE CON ÚLTIMAS VERSIONES DE PLOTLY)
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (OPTIMIZADO: CENTRADO EN RD, PUNTOS GRANDES Y DETECCIÓN DE ZONA)
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
@@ -1018,9 +1018,19 @@ elif menu == "Mapa Interactivo de Proyectos":
     col_desc_map = buscar_columna_segura(
         df_codigos, ["nombre", "descripci", "descripcion"]
     )
-    col_zona_map = buscar_columna_segura(
-        df_codigos, ["zona", "municipio", "provincia", "regional"]
-    )
+
+    # Buscador expandido para capturar la provincia / municipio / zona real en tu Excel
+    col_zona_map = buscar_columna_segura(df_codigos, [
+        "provincia",
+        "municipio",
+        "sector",
+        "regional",
+        "ubicacion",
+        "localidad",
+        "oficina",
+        "gerencia",
+        "zona",
+    ])
 
     if col_lat and col_lon and col_proy_map:
       df_mapa = df_codigos.copy()
@@ -1028,6 +1038,7 @@ elif menu == "Mapa Interactivo de Proyectos":
       df_mapa["lat"] = df_mapa[col_lat].apply(parsear_numero_seguro)
       df_mapa["lon"] = df_mapa[col_lon].apply(parsear_numero_seguro)
 
+      # Filtrar coordenadas válidas
       df_mapa = df_mapa[
           (df_mapa["lat"] != 0.0)
           & (df_mapa["lon"] != 0.0)
@@ -1080,11 +1091,17 @@ elif menu == "Mapa Interactivo de Proyectos":
             if col_desc_map
             else df_mapa["Clean_Proy"]
         )
-        df_mapa["Zona_Nombre"] = (
-            df_mapa[col_zona_map].fillna("Zona General")
-            if col_zona_map
-            else "Zona EDEESTE"
-        )
+
+        # Nombre real de la zona/municipio extraído del Excel
+        if col_zona_map:
+          df_mapa["Zona_Nombre"] = (
+              df_mapa[col_zona_map]
+              .fillna("Zona no especificada")
+              .astype(str)
+              .str.strip()
+          )
+        else:
+          df_mapa["Zona_Nombre"] = "Zona EDEESTE"
 
         if codigo_seleccionado != "Todos":
           df_mapa = df_mapa[
@@ -1095,7 +1112,7 @@ elif menu == "Mapa Interactivo de Proyectos":
           df_mapa["Hover_Txt"] = df_mapa.apply(
               lambda r: (
                   f"<b>Proyecto:</b> {r['Clean_Proy']} - {r['Nombre_Proyecto']}<br>"
-                  f"<b>Zona:</b> {r['Zona_Nombre']}<br>"
+                  f"<b>Zona / Sector:</b> {r['Zona_Nombre']}<br>"
                   f"<b>Mano de Obra:</b> RD$ {r['Mano_Obra_RD']:,.2f}<br>"
                   f"<b>Materiales SAP:</b> RD$ {r['Materiales_RD']:,.2f}<br>"
                   f"<b>Inversión Total:</b> RD$"
@@ -1104,26 +1121,46 @@ elif menu == "Mapa Interactivo de Proyectos":
               axis=1,
           )
 
-          # Gráfico de Mapa interactivo con px.scatter_geo / px.scatter_map seguro sin tokens externos
-          try:
-            fig_map = px.scatter_map(
-                df_mapa,
-                lat="lat",
-                lon="lon",
-                hover_name="Clean_Proy",
-                color_discrete_sequence=["#0d6efd"],
-                zoom=9 if codigo_seleccionado != "Todos" else 8,
-                height=520,
-            )
-            fig_map.update_traces(
-                hovertemplate="%{customdata[0]}<extra></extra>",
-                customdata=df_mapa[["Hover_Txt"]],
-            )
-            fig_map.update_layout(margin={"r": 0, "t": 10, "l": 0, "b": 0})
-            st.plotly_chart(fig_map, use_container_width=True)
-          except Exception:
-            # Fallback seguro con st.map si Plotly no tiene el módulo instalado en el server
-            st.map(df_mapa, latitude="lat", longitude="lon", size=25)
+          # Calcular centro dinámico exacto de República Dominicana
+          lat_center = (
+              df_mapa["lat"].mean()
+              if codigo_seleccionado == "Todos"
+              else df_mapa["lat"].iloc[0]
+          )
+          lon_center = (
+              df_mapa["lon"].mean()
+              if codigo_seleccionado == "Todos"
+              else df_mapa["lon"].iloc[0]
+          )
+          zoom_level = 8.8 if codigo_seleccionado == "Todos" else 13.0
+
+          # Plotly Scattermap con PUNTOS GRANDES y CENTRADO EN RD
+          fig_map = go.Figure(
+              go.Scattermap(
+                  lat=df_mapa["lat"],
+                  lon=df_mapa["lon"],
+                  mode="markers",
+                  marker=dict(
+                      size=16,  # Puntos grandes y claramente visibles
+                      color="#0d6efd",
+                      opacity=0.9,
+                  ),
+                  hoverinfo="text",
+                  text=df_mapa["Hover_Txt"],
+              )
+          )
+
+          fig_map.update_layout(
+              map=dict(
+                  style="open-street-map",
+                  center=dict(lat=lat_center, lon=lon_center),
+                  zoom=zoom_level,
+              ),
+              margin={"r": 0, "t": 10, "l": 0, "b": 0},
+              height=550,
+          )
+
+          st.plotly_chart(fig_map, use_container_width=True)
 
           st.markdown("---")
           st.markdown("### 🏙️ Resumen de Inversión Presupuestaria por Zona")
@@ -1138,7 +1175,7 @@ elif menu == "Mapa Interactivo de Proyectos":
               })
               .rename(
                   columns={
-                      "Zona_Nombre": "Zona / Municipio",
+                      "Zona_Nombre": "Zona / Municipio / Sector",
                       "Clean_Proy": "Cantidad de Proyectos",
                   }
               )
@@ -1157,7 +1194,7 @@ elif menu == "Mapa Interactivo de Proyectos":
 
           df_resumen_zona_disp = df_resumen_zona_disp[
               [
-                  "Zona / Municipio",
+                  "Zona / Municipio / Sector",
                   "Cantidad de Proyectos",
                   "Mano de Obra",
                   "Materiales SAP",
