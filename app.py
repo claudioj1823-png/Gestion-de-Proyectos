@@ -300,6 +300,139 @@ def mostrar_tabla_html_ejecutiva(df_mostrar):
   )
 
 
+def calcular_materiales_de_df_mo(df_mo_sub):
+  """Función estándar que utiliza el Panel Ejecutivo para calcular materiales reales por proyecto."""
+  if (
+      df_contratistas is None
+      or df_contratistas.empty
+      or df_sap is None
+      or df_sap.empty
+      or df_mo_sub is None
+      or df_mo_sub.empty
+  ):
+    return pd.DataFrame(), 0.0
+
+  fuente_mat = df_contratistas.copy()
+  col_act_mo = buscar_columna_segura(df_mo_sub, ["actividad", "código"])
+  col_cant_mo = buscar_columna_segura(df_mo_sub, ["cantidad", "cant"])
+  col_unds_mo = buscar_columna_segura(df_mo_sub, ["unds", "und", "unidad"])
+
+  if not col_act_mo or not col_cant_mo:
+    return pd.DataFrame(), 0.0
+
+  df_mo_sub = df_mo_sub.copy()
+  df_mo_sub["Actividad_Clean"] = (
+      df_mo_sub[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+  )
+  df_mo_sub["Cantidad_Num"] = (
+      df_mo_sub[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
+  )
+
+  if col_unds_mo:
+    df_mo_sub["Unds_Clean"] = (
+        df_mo_sub[col_unds_mo].fillna("").astype(str).str.strip().str.upper()
+    )
+    df_mo_fisico = df_mo_sub[
+        ~df_mo_sub["Unds_Clean"].str.contains("HORA|HR")
+    ].copy()
+  else:
+    df_mo_fisico = df_mo_sub[
+        ~df_mo_sub["Actividad_Clean"].str.startswith(("HNBR", "DFAC"))
+    ].copy()
+
+  df_mo_agrupado = df_mo_fisico.groupby(
+      "Actividad_Clean", as_index=False
+  )["Cantidad_Num"].sum()
+  dict_cant_mo = dict(
+      zip(df_mo_agrupado["Actividad_Clean"], df_mo_agrupado["Cantidad_Num"])
+  )
+
+  col_act_mat = buscar_columna_segura(fuente_mat, ["actividad"])
+  col_sap_mat = buscar_columna_segura(fuente_mat, ["sap", "código sap"])
+  col_cant_mat = buscar_columna_segura(fuente_mat, ["cantidad", "cant"])
+
+  if not col_act_mat or not col_sap_mat or not col_cant_mat:
+    return pd.DataFrame(), 0.0
+
+  fuente_mat["Actividad_Clean"] = (
+      fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
+  )
+  fuente_mat["Clean_SAP"] = (
+      fuente_mat[col_sap_mat]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+      .str.replace(r"\.0$", "", regex=True)
+  )
+  fuente_mat["Cantidad_Unitaria_Num"] = (
+      fuente_mat[col_cant_mat].apply(parsear_numero_seguro).fillna(0)
+  )
+
+  fuente_mat = fuente_mat[
+      ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
+  ]
+  fuente_mat_clean = fuente_mat.groupby(
+      ["Actividad_Clean", "Clean_SAP"], as_index=False
+  )["Cantidad_Unitaria_Num"].first()
+
+  df_filtrado = fuente_mat_clean[
+      fuente_mat_clean["Actividad_Clean"].isin(dict_cant_mo.keys())
+  ].copy()
+
+  if df_filtrado.empty:
+    return pd.DataFrame(), 0.0
+
+  df_filtrado["Cant_IDP"] = df_filtrado["Actividad_Clean"].map(dict_cant_mo)
+  condicion_especial = (df_filtrado["Actividad_Clean"] == "1VA-MT") & (
+      df_filtrado["Clean_SAP"] == "1000130"
+  )
+  df_filtrado["Cantidad_Total_Material"] = np.where(
+      condicion_especial,
+      df_filtrado["Cant_IDP"],
+      df_filtrado["Cantidad_Unitaria_Num"] * df_filtrado["Cant_IDP"],
+  )
+
+  col_sap_prec = buscar_columna_segura(df_sap, ["sap", "código"])
+  col_desc_sap = buscar_columna_segura(df_sap, ["descripci"])
+  col_precio_final = buscar_columna_segura(df_sap, ["precio", "costo"])
+
+  if not col_sap_prec or not col_desc_sap or not col_precio_final:
+    return pd.DataFrame(), 0.0
+
+  df_sap_copy = df_sap.copy()
+  df_sap_copy["Clean_SAP"] = (
+      df_sap_copy[col_sap_prec]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+      .str.replace(r"\.0$", "", regex=True)
+  )
+  df_sap_copy["Descripcion_Oficial"] = (
+      df_sap_copy[col_desc_sap].fillna("").astype(str)
+  )
+  df_sap_copy["Precio_Oficial"] = df_sap_copy[col_precio_final].apply(
+      parsear_numero_seguro
+  )
+
+  df_sap_limpio = df_sap_copy[
+      ["Clean_SAP", "Descripcion_Oficial", "Precio_Oficial"]
+  ].drop_duplicates(subset=["Clean_SAP"])
+  df_merge_sap = pd.merge(
+      df_filtrado, df_sap_limpio, on="Clean_SAP", how="left"
+  )
+
+  df_resumen_mat = df_merge_sap.groupby(
+      ["Clean_SAP", "Descripcion_Oficial"], as_index=False
+  ).agg({"Cantidad_Total_Material": "sum", "Precio_Oficial": "first"})
+  df_resumen_mat["Costo_Material"] = (
+      df_resumen_mat["Cantidad_Total_Material"]
+      * df_resumen_mat["Precio_Oficial"]
+  )
+  costo_total = df_resumen_mat["Costo_Material"].sum()
+
+  return df_resumen_mat, costo_total
+
+
 # =====================================================================
 # MÓDULO 1: PANEL EJECUTIVO POR PROYECTO
 # =====================================================================
@@ -338,8 +471,6 @@ if menu == "Panel Ejecutivo por Proyecto":
       col_proy_mo = buscar_columna_segura(
           df_mo, ["código proyecto", "codigo proyecto", "proyecto"]
       )
-
-      # Toma exactamente la columna 'Costo Total' (Columna F de tu Excel)
       col_costo_mo = buscar_columna_segura(
           df_mo, ["costo total", "monto total", "costo_total"]
       )
@@ -392,27 +523,47 @@ if menu == "Panel Ejecutivo por Proyecto":
               df_meta_proy.iloc[0][col_presupuesto]
           )
 
-    costo_materiales_total = 0.0
+    # Cálculo exacto de materiales usando la función central
+    df_resumen_mat, costo_materiales_total = calcular_materiales_de_df_mo(
+        df_mo_proy
+    )
     df_materiales_mostrador = pd.DataFrame()
+
+    if not df_resumen_mat.empty:
+      df_display = df_resumen_mat.copy()
+      df_display["Cantidad Total"] = df_display["Cantidad_Total_Material"].apply(
+          lambda x: f"{x:,.2f}"
+      )
+      df_display["Precio Unitario SAP"] = df_display["Precio_Oficial"].apply(
+          lambda x: f"RD$ {x:,.2f}"
+      )
+      df_display["Costo Total"] = df_display["Costo_Material"].apply(
+          lambda x: f"RD$ {x:,.2f}"
+      )
+
+      df_materiales_mostrador = df_display.rename(
+          columns={
+              "Clean_SAP": "Código SAP",
+              "Descripcion_Oficial": "Descripción de Material",
+          }
+      )[
+          [
+              "Código SAP",
+              "Descripción de Material",
+              "Cantidad Total",
+              "Precio Unitario SAP",
+              "Costo Total",
+          ]
+      ]
+
     df_mo_agrupado = pd.DataFrame()
     df_mo_fisico = pd.DataFrame()
-    df_resumen_mat = pd.DataFrame()
-
-    if (
-        df_contratistas is not None
-        and not df_contratistas.empty
-        and df_sap is not None
-        and not df_sap.empty
-        and not df_mo_proy.empty
-    ):
-      fuente_mat = df_contratistas.copy()
-
+    if not df_mo_proy.empty:
       col_act_mo = buscar_columna_segura(df_mo_proy, ["actividad", "código"])
       col_cant_mo = buscar_columna_segura(df_mo_proy, ["cantidad", "cant"])
       col_unds_mo = buscar_columna_segura(df_mo_proy, ["unds", "und", "unidad"])
 
       if col_act_mo and col_cant_mo:
-        df_mo_proy = df_mo_proy.copy()
         df_mo_proy["Actividad_Clean"] = (
             df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
         )
@@ -450,129 +601,6 @@ if menu == "Panel Ejecutivo por Proyecto":
             },
             inplace=True,
         )
-
-        dict_cant_mo = dict(
-            zip(
-                df_mo_agrupado["Actividad"], df_mo_agrupado["Cantidad Ejecutada"]
-            )
-        )
-
-        col_act_mat = buscar_columna_segura(fuente_mat, ["actividad"])
-        col_sap_mat = buscar_columna_segura(fuente_mat, ["sap", "código sap"])
-        col_cant_mat = buscar_columna_segura(fuente_mat, ["cantidad", "cant"])
-
-        if col_act_mat and col_sap_mat and col_cant_mat:
-          fuente_mat["Actividad_Clean"] = (
-              fuente_mat[col_act_mat]
-              .fillna("")
-              .astype(str)
-              .str.strip()
-              .str.upper()
-          )
-          fuente_mat["Clean_SAP"] = (
-              fuente_mat[col_sap_mat]
-              .fillna("")
-              .astype(str)
-              .str.strip()
-              .str.replace(r"\.0$", "", regex=True)
-          )
-          fuente_mat["Cantidad_Unitaria_Num"] = (
-              fuente_mat[col_cant_mat].apply(parsear_numero_seguro).fillna(0)
-          )
-
-          fuente_mat = fuente_mat[
-              ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
-          ]
-          
-          fuente_mat_clean = fuente_mat.groupby(
-              ["Actividad_Clean", "Clean_SAP"], as_index=False
-          )["Cantidad_Unitaria_Num"].first()
-
-          df_filtrado = fuente_mat_clean[
-              fuente_mat_clean["Actividad_Clean"].isin(dict_cant_mo.keys())
-          ].copy()
-
-          if not df_filtrado.empty:
-            df_filtrado["Cant_IDP"] = df_filtrado["Actividad_Clean"].map(
-                dict_cant_mo
-            )
-            condicion_especial = (
-                df_filtrado["Actividad_Clean"] == "1VA-MT"
-            ) & (df_filtrado["Clean_SAP"] == "1000130")
-            df_filtrado["Cantidad_Total_Material"] = np.where(
-                condicion_especial,
-                df_filtrado["Cant_IDP"],
-                df_filtrado["Cantidad_Unitaria_Num"]
-                * df_filtrado["Cant_IDP"],
-            )
-
-            col_sap_prec = buscar_columna_segura(df_sap, ["sap", "código"])
-            col_desc_sap = buscar_columna_segura(df_sap, ["descripci"])
-            col_precio_final = buscar_columna_segura(df_sap, ["precio", "costo"])
-
-            if col_sap_prec and col_desc_sap and col_precio_final:
-              df_sap_copy = df_sap.copy()
-              df_sap_copy["Clean_SAP"] = (
-                  df_sap_copy[col_sap_prec]
-                  .fillna("")
-                  .astype(str)
-                  .str.strip()
-                  .str.replace(r"\.0$", "", regex=True)
-              )
-              df_sap_copy["Descripcion_Oficial"] = (
-                  df_sap_copy[col_desc_sap].fillna("").astype(str)
-              )
-              df_sap_copy["Precio_Oficial"] = df_sap_copy[
-                  col_precio_final
-              ].apply(parsear_numero_seguro)
-
-              df_sap_limpio = df_sap_copy[
-                  ["Clean_SAP", "Descripcion_Oficial", "Precio_Oficial"]
-              ].drop_duplicates(subset=["Clean_SAP"])
-              df_merge_sap = pd.merge(
-                  df_filtrado, df_sap_limpio, on="Clean_SAP", how="left"
-              )
-
-              df_resumen_mat = df_merge_sap.groupby(
-                  ["Clean_SAP", "Descripcion_Oficial"], as_index=False
-              ).agg(
-                  {
-                      "Cantidad_Total_Material": "sum",
-                      "Precio_Oficial": "first",
-                  }
-              )
-              df_resumen_mat["Costo_Material"] = (
-                  df_resumen_mat["Cantidad_Total_Material"]
-                  * df_resumen_mat["Precio_Oficial"]
-              )
-              costo_materiales_total = df_resumen_mat["Costo_Material"].sum()
-
-              df_display = df_resumen_mat.copy()
-              df_display["Cantidad Total"] = df_display[
-                  "Cantidad_Total_Material"
-              ].apply(lambda x: f"{x:,.2f}")
-              df_display["Precio Unitario SAP"] = df_display[
-                  "Precio_Oficial"
-              ].apply(lambda x: f"RD$ {x:,.2f}")
-              df_display["Costo Total"] = df_display["Costo_Material"].apply(
-                  lambda x: f"RD$ {x:,.2f}"
-              )
-
-              df_display = df_display.rename(
-                  columns={
-                      "Clean_SAP": "Código SAP",
-                      "Descripcion_Oficial": "Descripción de Material",
-                  }
-              )[
-                  [
-                      "Código SAP",
-                      "Descripción de Material",
-                      "Cantidad Total",
-                      "Precio Unitario SAP",
-                      "Costo Total",
-                  ]
-              ]
-              df_materiales_mostrador = df_display
 
     df_avance_acciones = pd.DataFrame()
     if df_metas is not None and not df_metas.empty:
@@ -995,14 +1023,14 @@ elif menu == "Mapa Interactivo de Proyectos":
   st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
 
 # =====================================================================
-# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) - RIGUROSO Y EXACTO
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) - TOTALIZACIÓN DESDE EL PANEL
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
   st.subheader("📦 Auditoría de Materiales por Almacén - Contratista COCCIA")
   st.markdown(
-      "Este módulo filtra de manera estricta únicamente los registros de"
-      " **COCCIA** en mano de obra y extrae el **kit completo de materiales SAP"
-      " unificados** sin duplicidad de contratas."
+      "Este módulo toma exactamente la **mano de obra ejecutada por COCCIA** y"
+      " totaliza sus materiales utilizando la misma lógica probada del Panel"
+      " Ejecutivo."
   )
 
   if df_mo is not None and df_contratistas is not None and df_sap is not None:
@@ -1017,6 +1045,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
       )
       st.stop()
 
+    # FILTRAR RIGUROSAMENTE SÓLO MANO DE OBRA DE COCCIA / CEBALLOS
     df_mo_coccia = df_mo[
         df_mo[col_contratista]
         .astype(str)
@@ -1092,134 +1121,27 @@ elif menu == "Auditoría de Almacén (Coccia)":
           df_mo_filtrado[col_proy].astype(str).str.strip() == proy_auditoria
       ]
 
-    col_act_mo = buscar_columna_segura(df_mo_filtrado, ["actividad", "código"])
-    col_cant_mo = buscar_columna_segura(df_mo_filtrado, ["cantidad", "cant"])
-
-    if not col_act_mo or not col_cant_mo:
-      st.error("⚠️ Faltan columnas de Actividad o Cantidad en Mano de Obra.")
-      st.stop()
-
-    df_mo_filtrado["Actividad_Clean"] = (
-        df_mo_filtrado[col_act_mo].fillna("").astype(str).str.strip().str.upper()
-    )
-    df_mo_filtrado["Cantidad_Num"] = (
-        df_mo_filtrado[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
+    # REUTILIZAR LA LÓGICA DEL PANEL EJECUTIVO EXACTA
+    df_resumen_mat_coccia, costo_total_coccia = calcular_materiales_de_df_mo(
+        df_mo_filtrado
     )
 
-    df_agrup_mo = df_mo_filtrado.groupby("Actividad_Clean", as_index=False)[
-        "Cantidad_Num"
-    ].sum()
-    dict_cantidades_coccia = dict(
-        zip(df_agrup_mo["Actividad_Clean"], df_agrup_mo["Cantidad_Num"])
-    )
-
-    fuente_mat = df_contratistas.copy()
-    col_act_mat = buscar_columna_segura(fuente_mat, ["actividad"])
-    col_sap_mat = buscar_columna_segura(fuente_mat, ["sap", "código sap"])
-    col_cant_mat = buscar_columna_segura(fuente_mat, ["cantidad", "cant"])
-
-    if not col_act_mat or not col_sap_mat or not col_cant_mat:
-      st.error(
-          "⚠️ Faltan columnas esenciales en la matriz de materiales de"
-          " contratistas."
-      )
-      st.stop()
-
-    fuente_mat["Actividad_Clean"] = (
-        fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
-    )
-    fuente_mat["Clean_SAP"] = (
-        fuente_mat[col_sap_mat]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-        .str.replace(r"\.0$", "", regex=True)
-    )
-    fuente_mat["Cant_Unitaria"] = (
-        fuente_mat[col_cant_mat].apply(parsear_numero_seguro).fillna(0)
-    )
-
-    fuente_mat_clean = fuente_mat[
-        ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
-    ]
-
-    matriz_unificada = fuente_mat_clean.groupby(
-        ["Actividad_Clean", "Clean_SAP"], as_index=False
-    )["Cant_Unitaria"].max()
-
-    df_mat_filtrado = matriz_unificada[
-        matriz_unificada["Actividad_Clean"].isin(
-            dict_cantidades_coccia.keys()
-        )
-    ].copy()
-
-    if not df_mat_filtrado.empty:
-      df_mat_filtrado["Cant_MO_Coccia"] = df_mat_filtrado["Actividad_Clean"].map(
-          dict_cantidades_coccia
-      )
-
-      cond_especial = (df_mat_filtrado["Actividad_Clean"] == "1VA-MT") & (
-          df_mat_filtrado["Clean_SAP"] == "1000130"
-      )
-      df_mat_filtrado["Cantidad_Total_Material"] = np.where(
-          cond_especial,
-          df_mat_filtrado["Cant_MO_Coccia"],
-          df_mat_filtrado["Cant_Unitaria"] * df_mat_filtrado["Cant_MO_Coccia"],
-      )
-
-      col_sap_p = buscar_columna_segura(df_sap, ["sap", "código"])
-      col_desc_p = buscar_columna_segura(df_sap, ["descripci"])
-      col_prec_p = buscar_columna_segura(df_sap, ["precio", "costo"])
-
-      if not col_sap_p or not col_desc_p or not col_prec_p:
-        st.error(
-            "⚠️ Faltan columnas clave (Código SAP, Descripción o Precio) en"
-            " Precios Sap.xlsx"
-        )
-        st.stop()
-
-      df_sap_c = df_sap.copy()
-      df_sap_c["Clean_SAP"] = (
-          df_sap_c[col_sap_p]
-          .fillna("")
-          .astype(str)
-          .str.strip()
-          .str.replace(r"\.0$", "", regex=True)
-      )
-      df_sap_c["Descripcion"] = df_sap_c[col_desc_p].fillna("").astype(str)
-      df_sap_c["Precio_Num"] = df_sap_c[col_prec_p].apply(parsear_numero_seguro)
-
-      df_sap_clean = df_sap_c[
-          ["Clean_SAP", "Descripcion", "Precio_Num"]
-      ].drop_duplicates(subset=["Clean_SAP"])
-      df_reporte = pd.merge(
-          df_mat_filtrado, df_sap_clean, on="Clean_SAP", how="left"
-      )
-
-      df_consolidado = df_reporte.groupby(
-          ["Clean_SAP", "Descripcion"], as_index=False
-      ).agg({"Cantidad_Total_Material": "sum", "Precio_Num": "first"})
-
-      df_consolidado["Monto_Total_RD"] = (
-          df_consolidado["Cantidad_Total_Material"]
-          * df_consolidado["Precio_Num"]
-      )
-
-      df_mostrar = df_consolidado.copy()
+    if not df_resumen_mat_coccia.empty:
+      df_mostrar = df_resumen_mat_coccia.copy()
       df_mostrar["Cantidad Requerida"] = df_mostrar[
           "Cantidad_Total_Material"
       ].apply(lambda x: f"{x:,.2f}")
-      df_mostrar["Precio Unitario SAP"] = df_mostrar["Precio_Num"].apply(
+      df_mostrar["Precio Unitario SAP"] = df_mostrar["Precio_Oficial"].apply(
           lambda x: f"RD$ {x:,.2f}"
       )
-      df_mostrar["Costo Total Material"] = df_mostrar["Monto_Total_RD"].apply(
+      df_mostrar["Costo Total Material"] = df_mostrar["Costo_Material"].apply(
           lambda x: f"RD$ {x:,.2f}"
       )
 
       df_mostrar = df_mostrar.rename(
           columns={
               "Clean_SAP": "Código SAP",
-              "Descripcion": "Descripción de Material",
+              "Descripcion_Oficial": "Descripción de Material",
           }
       )[
           [
