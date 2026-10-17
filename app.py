@@ -297,6 +297,9 @@ def mostrar_tabla_html_ejecutiva(df_mostrar):
   )
 
 
+# =====================================================================
+# MÓDULO 1: PANEL EJECUTIVO POR PROYECTO
+# =====================================================================
 if menu == "Panel Ejecutivo por Proyecto":
   if codigo_seleccionado != "Todos":
     cod_clean = str(codigo_seleccionado).strip()
@@ -1071,6 +1074,9 @@ if menu == "Panel Ejecutivo por Proyecto":
   else:
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
+# =====================================================================
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS
+# =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
       "🗺️ Ubicación Geográfica del Proyecto en Zona de Concesión EDEESTE"
@@ -1089,22 +1095,24 @@ elif menu == "Mapa Interactivo de Proyectos":
   st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
 
 # =====================================================================
-# NUEVO MÓDULO: AUDITORÍA DE ALMACÉN (COCCIA)
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA)
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
   st.subheader("📦 Auditoría de Materiales por Almacén - Contratista COCCIA")
   st.markdown(
-      "Este módulo filtra exclusivamente la **mano de obra ejecutada** por"
-      " **Coccia** para determinar los **materiales SAP teóricos** que"
-      " corresponden a su auditoría de almacén por proyecto."
+      "Este módulo filtra la **mano de obra ejecutada por Coccia** y la"
+      " relaciona con la matriz de materiales para calcular el **inventario"
+      " teórico real de almacén**."
   )
 
   if df_mo is not None and df_contratistas is not None and df_sap is not None:
+    # 1. Identificar columna de Contratista
     col_contratista = next(
         (
             c
             for c in df_mo.columns
-            if "contratista" in c.lower()
+            if "contrata" in c.lower()
+            or "contratista" in c.lower()
             or "empresa" in c.lower()
             or "proveedor" in c.lower()
         ),
@@ -1152,6 +1160,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
           df_mo_filtrado[col_proy].astype(str).str.strip() == proy_auditoria
       ]
 
+    # 2. Agrupar Mano de Obra por Actividad (ej. 1CO-004)
     col_act_mo = next(
         (
             c
@@ -1178,6 +1187,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
         df_mo_filtrado[col_cant_mo], errors="coerce"
     ).fillna(0)
 
+    # Agrupar suma total de metros/unidades por cada Actividad
     df_agrup_mo = df_mo_filtrado.groupby("Actividad_Clean", as_index=False)[
         "Cantidad_Num"
     ].sum()
@@ -1185,6 +1195,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
         zip(df_agrup_mo["Actividad_Clean"], df_agrup_mo["Cantidad_Num"])
     )
 
+    # 3. Matriz de Contratistas: Desduplicar contratas para tomar exactamente el factor unitario
     fuente_mat = df_contratistas.copy()
     col_act_mat = next(
         (c for c in fuente_mat.columns if "actividad" in c.lower()),
@@ -1226,8 +1237,15 @@ elif menu == "Auditoría de Almacén (Coccia)":
     fuente_mat_clean = fuente_mat[
         ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
     ]
-    df_mat_filtrado = fuente_mat_clean[
-        fuente_mat_clean["Actividad_Clean"].isin(dict_cantidades.keys())
+
+    # Quedarse con un único factor por Actividad y Código SAP (evita duplicar coeficientes de contratistas)
+    fuente_mat_dedup = fuente_mat_clean.groupby(
+        ["Actividad_Clean", "Clean_SAP"], as_index=False
+    )["Cant_Unitaria"].first()
+
+    # Filtrar solo las actividades ejecutadas en la mano de obra
+    df_mat_filtrado = fuente_mat_dedup[
+        fuente_mat_dedup["Actividad_Clean"].isin(dict_cantidades.keys())
     ].copy()
 
     if not df_mat_filtrado.empty:
@@ -1245,6 +1263,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
           * df_mat_filtrado["Cant_Ejecutada_MO"],
       )
 
+      # 4. Traer Precios Oficiales SAP
       col_sap_p = next(
           (
               c
@@ -1286,10 +1305,12 @@ elif menu == "Auditoría de Almacén (Coccia)":
       df_sap_clean = df_sap_c[
           ["Clean_SAP", "Descripcion", "Precio_Num"]
       ].drop_duplicates(subset=["Clean_SAP"])
+
       df_reporte = pd.merge(
           df_mat_filtrado, df_sap_clean, on="Clean_SAP", how="left"
       )
 
+      # Agrupar por código SAP para sumar las cantidades de distintas actividades
       df_consolidado = df_reporte.groupby(
           ["Clean_SAP", "Descripcion"], as_index=False
       ).agg({"Cantidad_Total_Material": "sum", "Precio_Num": "first"})
@@ -1299,11 +1320,12 @@ elif menu == "Auditoría de Almacén (Coccia)":
           * df_consolidado["Precio_Num"]
       )
 
+      # Formatear tabla para presentación
       df_mostrar = df_consolidado.copy()
       df_mostrar["Cantidad Requerida"] = df_mostrar[
           "Cantidad_Total_Material"
       ].apply(lambda x: f"{x:,.2f}")
-      df_mostrar["Precio Unitario"] = df_mostrar["Precio_Num"].apply(
+      df_mostrar["Precio Unitario SAP"] = df_mostrar["Precio_Num"].apply(
           lambda x: f"RD$ {x:,.2f}"
       )
       df_mostrar["Costo Total Material"] = df_mostrar["Monto_Total_RD"].apply(
@@ -1320,17 +1342,18 @@ elif menu == "Auditoría de Almacén (Coccia)":
               "Código SAP",
               "Descripción de Material",
               "Cantidad Requerida",
-              "Precio Unitario",
+              "Precio Unitario SAP",
               "Costo Total Material",
           ]
       ]
 
       st.markdown(
-          f"### 📊 Materiales Teóricos de Almacén para Coccia —"
+          f"### 📊 Inventario Teórico de Almacén para Coccia —"
           f" {proy_auditoria}"
       )
       mostrar_tabla_html_ejecutiva(df_mostrar)
 
+      # Descargar Excel
       buffer = io.BytesIO()
       with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df_mostrar.to_excel(
@@ -1353,4 +1376,4 @@ elif menu == "Auditoría de Almacén (Coccia)":
   else:
     st.error(
         "Faltan archivos base para realizar el cálculo de auditoría de almacén."
-    )           
+    )
