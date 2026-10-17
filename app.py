@@ -1002,7 +1002,7 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (CON HOVER INTERACTIVO Y RESUMEN POR ZONA)
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (COMPATIBLE CON ÚLTIMAS VERSIONES DE PLOTLY)
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
@@ -1104,29 +1104,26 @@ elif menu == "Mapa Interactivo de Proyectos":
               axis=1,
           )
 
-          fig_map = px.scatter_mapbox(
-              df_mapa,
-              lat="lat",
-              lon="lon",
-              hover_name="Clean_Proy",
-              hover_data={"lat": False, "lon": False},
-              color_discrete_sequence=["#0d6efd"],
-              size_max=15,
-              zoom=9 if codigo_seleccionado != "Todos" else 8,
-              height=520,
-          )
-
-          fig_map.update_traces(
-              hovertemplate="%{customdata[0]}<extra></extra>",
-              customdata=df_mapa[["Hover_Txt"]],
-          )
-
-          fig_map.update_layout(
-              mapbox_style="open-street-map",
-              margin={"r": 0, "t": 10, "l": 0, "b": 0},
-          )
-
-          st.plotly_chart(fig_map, use_container_width=True)
+          # Gráfico de Mapa interactivo con px.scatter_geo / px.scatter_map seguro sin tokens externos
+          try:
+            fig_map = px.scatter_map(
+                df_mapa,
+                lat="lat",
+                lon="lon",
+                hover_name="Clean_Proy",
+                color_discrete_sequence=["#0d6efd"],
+                zoom=9 if codigo_seleccionado != "Todos" else 8,
+                height=520,
+            )
+            fig_map.update_traces(
+                hovertemplate="%{customdata[0]}<extra></extra>",
+                customdata=df_mapa[["Hover_Txt"]],
+            )
+            fig_map.update_layout(margin={"r": 0, "t": 10, "l": 0, "b": 0})
+            st.plotly_chart(fig_map, use_container_width=True)
+          except Exception:
+            # Fallback seguro con st.map si Plotly no tiene el módulo instalado en el server
+            st.map(df_mapa, latitude="lat", longitude="lon", size=25)
 
           st.markdown("---")
           st.markdown("### 🏙️ Resumen de Inversión Presupuestaria por Zona")
