@@ -195,11 +195,11 @@ if df_familia is not None and not df_familia.empty:
           or "código" in c.lower()
           or "codigo" in c.lower()
       ),
-      df_familia.columns[0],
+      df_familia.columns[min(0, len(df_familia.columns) - 1)],
   )
   col_fam_f = next(
       (c for c in df_familia.columns if "familia" in c.lower()),
-      df_familia.columns[2],
+      df_familia.columns[min(2, len(df_familia.columns) - 1)],
   )
   for _, row in df_familia.iterrows():
     act_raw = str(row[col_act_f]).strip().upper()
@@ -256,7 +256,7 @@ if df_codigos is not None and not df_codigos.empty:
           or "código" in c.lower()
           or "codigo" in c.lower()
       ),
-      df_codigos.columns[0],
+      df_codigos.columns[min(0, len(df_codigos.columns) - 1)],
   )
   lista_codigos = (
       df_codigos[col_codigo]
@@ -289,7 +289,7 @@ st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
 
 def mostrar_tabla_html_ejecutiva(df_mostrar):
   html_str = df_mostrar.to_html(
-      index=False, classes="tabla-ejecutiva", escape=False
+      index=False, classes="tabla-ejecutiva", escape=True
   )
   st.markdown(
       f'<div class="tabla-ejecutiva-container">{html_str}</div>',
@@ -306,7 +306,7 @@ if menu == "Panel Ejecutivo por Proyecto":
 
     nombre_proyecto_str = cod_clean
     if df_codigos is not None and not df_codigos.empty:
-      col_codigo_p = df_codigos.columns[0]
+      col_codigo_p = df_codigos.columns[min(0, len(df_codigos.columns) - 1)]
       cols_desc_p = [
           c
           for c in df_codigos.columns
@@ -351,7 +351,7 @@ if menu == "Panel Ejecutivo por Proyecto":
       if not col_costo_mo:
         col_costo_mo = next(
             (c for c in df_mo.columns if "costo total" in c.lower()),
-            df_mo.columns[5],
+            df_mo.columns[min(5, len(df_mo.columns) - 1)],
         )
 
       df_mo_proy = df_mo[
@@ -402,7 +402,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               or "código" in c.lower()
               or "codigo" in c.lower()
           ),
-          df_metas.columns[0],
+          df_metas.columns[min(0, len(df_metas.columns) - 1)],
       )
       col_presupuesto = next(
           (c for c in df_metas.columns if "presupuesto" in c.lower()),
@@ -444,7 +444,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               or "actividad" in c.lower()
               or "código" in c.lower()
           ),
-          df_mo_proy.columns[0],
+          df_mo_proy.columns[min(0, len(df_mo_proy.columns) - 1)],
       )
       col_cant_mo = next(
           (
@@ -452,7 +452,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               for c in df_mo_proy.columns
               if c.lower().strip() == "cantidad" or "cant" in c.lower()
           ),
-          df_mo_proy.columns[4],
+          df_mo_proy.columns[min(4, len(df_mo_proy.columns) - 1)],
       )
       col_unds_mo = next(
           (
@@ -506,7 +506,7 @@ if menu == "Panel Ejecutivo por Proyecto":
 
       col_act_mat = next(
           (c for c in fuente_mat.columns if "actividad" in c.lower()),
-          fuente_mat.columns[0],
+          fuente_mat.columns[min(0, len(fuente_mat.columns) - 1)],
       )
       col_sap_mat = next(
           (
@@ -516,7 +516,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               or "código sap" in c.lower()
               or "codigo sap" in c.lower()
           ),
-          fuente_mat.columns[4],
+          fuente_mat.columns[min(4, len(fuente_mat.columns) - 1)],
       )
       col_cant_mat = next(
           (
@@ -524,7 +524,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               for c in fuente_mat.columns
               if "cantidad" in c.lower() or "cant" in c.lower()
           ),
-          fuente_mat.columns[7],
+          fuente_mat.columns[min(7, len(fuente_mat.columns) - 1)],
       )
 
       fuente_mat["Actividad_Clean"] = (
@@ -572,11 +572,11 @@ if menu == "Panel Ejecutivo por Proyecto":
                 for c in df_sap.columns
                 if "sap" in c.lower() or "código" in c.lower()
             ),
-            df_sap.columns[0],
+            df_sap.columns[min(0, len(df_sap.columns) - 1)],
         )
         col_desc_sap = next(
             (c for c in df_sap.columns if "descripci" in c.lower()),
-            df_sap.columns[1],
+            df_sap.columns[min(1, len(df_sap.columns) - 1)],
         )
         col_precio_final = next(
             (
@@ -584,7 +584,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 for c in df_sap.columns
                 if "precio" in c.lower() or "costo" in c.lower()
             ),
-            df_sap.columns[2],
+            df_sap.columns[min(2, len(df_sap.columns) - 1)],
         )
 
         df_sap_copy = df_sap.copy()
@@ -667,7 +667,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               or "código" in c.lower()
               or "codigo" in c.lower()
           ),
-          df_metas.columns[0],
+          df_metas.columns[min(0, len(df_metas.columns) - 1)],
       )
       df_metas_copy2 = df_metas.copy()
       df_metas_copy2["Clean_P_Meta"] = (
@@ -684,7 +684,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 for c in df_meta_proy_filt.columns
                 if "accion" in c.lower() or "actividad" in c.lower()
             ),
-            df_meta_proy_filt.columns[3],
+            df_meta_proy_filt.columns[min(3, len(df_meta_proy_filt.columns) - 1)],
         )
         col_cant_plan = next(
             (
@@ -692,7 +692,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 for c in df_meta_proy_filt.columns
                 if "cantidad" in c.lower() or "planifica" in c.lower()
             ),
-            df_meta_proy_filt.columns[4],
+            df_meta_proy_filt.columns[min(4, len(df_meta_proy_filt.columns) - 1)],
         )
 
         df_meta_proy_filt["Acción"] = (
@@ -1092,7 +1092,7 @@ elif menu == "Mapa Interactivo de Proyectos":
       ],
   })
   st.map(map_data)
-  st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
+  st.caption("Mapa de referencia con puntos de ubicación configurados en el código; no es una vista satelital ni se alimenta automáticamente de los Excel.")
 
 # =====================================================================
 # MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA)
@@ -1127,6 +1127,13 @@ elif menu == "Auditoría de Almacén (Coccia)":
           .str.upper()
           .str.contains("COCCIA|CEBALLOS", na=False)
       ]
+    else:
+      st.error(
+          "No se encontró una columna de contratista/empresa/proveedor en "
+          "'Mano de Obra por proyecto.xlsx'. La auditoría se detuvo para "
+          "evitar mezclar registros de otros contratistas."
+      )
+      df_mo_coccia = df_mo_coccia.iloc[0:0].copy()
 
     col_proy = next(
         (
@@ -1169,7 +1176,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
             or "actividad" in c.lower()
             or "código" in c.lower()
         ),
-        df_mo_filtrado.columns[0],
+        df_mo_filtrado.columns[min(0, len(df_mo_filtrado.columns) - 1)],
     )
     col_cant_mo = next(
         (
@@ -1177,7 +1184,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
             for c in df_mo_filtrado.columns
             if c.lower().strip() == "cantidad" or "cant" in c.lower()
         ),
-        df_mo_filtrado.columns[4],
+        df_mo_filtrado.columns[min(4, len(df_mo_filtrado.columns) - 1)],
     )
 
     df_mo_filtrado["Actividad_Clean"] = (
@@ -1199,7 +1206,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
     fuente_mat = df_contratistas.copy()
     col_act_mat = next(
         (c for c in fuente_mat.columns if "actividad" in c.lower()),
-        fuente_mat.columns[0],
+        fuente_mat.columns[min(0, len(fuente_mat.columns) - 1)],
     )
     col_sap_mat = next(
         (
@@ -1209,7 +1216,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
             or "código sap" in c.lower()
             or "codigo sap" in c.lower()
         ),
-        fuente_mat.columns[4],
+        fuente_mat.columns[min(4, len(fuente_mat.columns) - 1)],
     )
     col_cant_mat = next(
         (
@@ -1217,7 +1224,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
             for c in fuente_mat.columns
             if "cantidad" in c.lower() or "cant" in c.lower()
         ),
-        fuente_mat.columns[7],
+        fuente_mat.columns[min(7, len(fuente_mat.columns) - 1)],
     )
 
     fuente_mat["Actividad_Clean"] = (
@@ -1270,11 +1277,11 @@ elif menu == "Auditoría de Almacén (Coccia)":
               for c in df_sap.columns
               if "sap" in c.lower() or "código" in c.lower()
           ),
-          df_sap.columns[0],
+          df_sap.columns[min(0, len(df_sap.columns) - 1)],
       )
       col_desc_p = next(
           (c for c in df_sap.columns if "descripci" in c.lower()),
-          df_sap.columns[1],
+          df_sap.columns[min(1, len(df_sap.columns) - 1)],
       )
       col_prec_p = next(
           (
@@ -1282,7 +1289,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
               for c in df_sap.columns
               if "precio" in c.lower() or "costo" in c.lower()
           ),
-          df_sap.columns[2],
+          df_sap.columns[min(2, len(df_sap.columns) - 1)],
       )
 
       df_sap_c = df_sap.copy()
