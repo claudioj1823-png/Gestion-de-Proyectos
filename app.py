@@ -1424,4 +1424,4 @@ elif menu == "Auditoría de Almacén (Coccia)":
     else:
       st.warning("No hay materiales consolidados para mostrar.")
   else:
-    st.error("Faltan archivos base para realizar la auditoría.")     
+    st.error("Faltan archivos base para realizar la auditoría.")
