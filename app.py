@@ -301,7 +301,7 @@ def mostrar_tabla_html_ejecutiva(df_mostrar):
 
 
 def calcular_materiales_de_df_mo(df_mo_sub):
-  """Función estándar que utiliza el Panel Ejecutivo para calcular materiales reales por proyecto."""
+  """Función exacta que utiliza el Panel Ejecutivo para calcular materiales reales por proyecto."""
   if (
       df_contratistas is None
       or df_contratistas.empty
@@ -523,7 +523,6 @@ if menu == "Panel Ejecutivo por Proyecto":
               df_meta_proy.iloc[0][col_presupuesto]
           )
 
-    # Cálculo exacto de materiales usando la función central
     df_resumen_mat, costo_materiales_total = calcular_materiales_de_df_mo(
         df_mo_proy
     )
@@ -1003,7 +1002,7 @@ if menu == "Panel Ejecutivo por Proyecto":
     st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTO
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
   st.subheader(
@@ -1023,14 +1022,18 @@ elif menu == "Mapa Interactivo de Proyectos":
   st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
 
 # =====================================================================
-# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) - TOTALIZACIÓN DESDE EL PANEL
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — DESGLOSE POR PROYECTO + TOTAL GENERAL
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
-  st.subheader("📦 Auditoría de Materiales por Almacén - Contratista COCCIA")
+  st.subheader(
+      "📦 Auditoría de Materiales por Almacén — Contratista COCCIA (Desglose por"
+      " Proyecto)"
+  )
   st.markdown(
-      "Este módulo toma exactamente la **mano de obra ejecutada por COCCIA** y"
-      " totaliza sus materiales utilizando la misma lógica probada del Panel"
-      " Ejecutivo."
+      "Este módulo presenta de manera limpia y estructurada la mano de obra"
+      " ejecutada exclusivamente por **COCCIA** por cada proyecto, sus"
+      " materiales calculados, y al final el **Material Total Global**"
+      " consolidado."
   )
 
   if df_mo is not None and df_contratistas is not None and df_sap is not None:
@@ -1045,19 +1048,19 @@ elif menu == "Auditoría de Almacén (Coccia)":
       )
       st.stop()
 
-    # FILTRAR RIGUROSAMENTE SÓLO MANO DE OBRA DE COCCIA / CEBALLOS
-    df_mo_coccia = df_mo[
+    # 1. FILTRAR EXCLUSIVAMENTE LOS REGISTROS DE COCCIA
+    df_mo_coccia_puro = df_mo[
         df_mo[col_contratista]
         .astype(str)
         .str.upper()
         .str.strip()
-        .str.contains("COCCIA|CEBALLOS", na=False)
+        .eq("COCCIA")
     ].copy()
 
-    if "Fecha_Parsed" in df_mo_coccia.columns:
+    if "Fecha_Parsed" in df_mo_coccia_puro.columns:
       if ano_sel != "Todos":
-        df_mo_coccia = df_mo_coccia[
-            df_mo_coccia["Fecha_Parsed"].dt.year == int(ano_sel)
+        df_mo_coccia_puro = df_mo_coccia_puro[
+            df_mo_coccia_puro["Fecha_Parsed"].dt.year == int(ano_sel)
         ]
       if mes_sel != "Todos":
         meses_dict = {
@@ -1074,25 +1077,31 @@ elif menu == "Auditoría de Almacén (Coccia)":
             "Noviembre": 11,
             "Diciembre": 12,
         }
-        df_mo_coccia = df_mo_coccia[
-            df_mo_coccia["Fecha_Parsed"].dt.month == meses_dict.get(mes_sel, 0)
+        df_mo_coccia_puro = df_mo_coccia_puro[
+            df_mo_coccia_puro["Fecha_Parsed"].dt.month
+            == meses_dict.get(mes_sel, 0)
         ]
 
-    if df_mo_coccia.empty:
+    if df_mo_coccia_puro.empty:
       st.warning(
-          "⚠️ No se encontraron registros de mano de obra para COCCIA con los"
-          " filtros seleccionados."
+          "⚠️ No se encontraron registros de mano de obra exclusivos para"
+          " COCCIA con los filtros seleccionados."
       )
       st.stop()
 
-    col_proy = buscar_columna_segura(
-        df_mo_coccia, ["código proyecto", "codigo proyecto", "proyecto"]
+    col_proy_mo = buscar_columna_segura(
+        df_mo_coccia_puro, ["código proyecto", "codigo proyecto", "proyecto"]
     )
-    if not col_proy:
-      col_proy = df_mo_coccia.columns[-2]
+    if not col_proy_mo:
+      col_proy_mo = df_mo_coccia_puro.columns[-2]
 
-    proyectos_coccia = (
-        df_mo_coccia[col_proy]
+    # Identificar la columna de descripción del proyecto si existe
+    col_desc_proy_mo = buscar_columna_segura(
+        df_mo_coccia_puro, ["nombre proyect", "nombre proyecto", "descripcion"]
+    )
+
+    proyectos_de_coccia = sorted(
+        df_mo_coccia_puro[col_proy_mo]
         .dropna()
         .astype(str)
         .str.strip()
@@ -1100,45 +1109,96 @@ elif menu == "Auditoría de Almacén (Coccia)":
         .tolist()
     )
 
-    opciones_auditoria = ["Todos"] + sorted(proyectos_coccia)
-    index_defecto = 0
-    if (
-        codigo_seleccionado != "Todos"
-        and codigo_seleccionado in opciones_auditoria
-    ):
-      index_defecto = opciones_auditoria.index(codigo_seleccionado)
-
-    proy_auditoria = st.selectbox(
-        "🎯 Seleccione el Proyecto de Coccia a Auditar (o 'Todos' para"
-        " consolidado):",
-        opciones_auditoria,
-        index=index_defecto,
+    st.markdown("---")
+    st.markdown(
+        "### 🏗️ Desglose por Proyecto de Coccia (Mano de Obra y Materiales)"
     )
 
-    df_mo_filtrado = df_mo_coccia.copy()
-    if proy_auditoria != "Todos":
-      df_mo_filtrado = df_mo_filtrado[
-          df_mo_filtrado[col_proy].astype(str).str.strip() == proy_auditoria
-      ]
+    lista_df_materiales_todos = []
 
-    # REUTILIZAR LA LÓGICA DEL PANEL EJECUTIVO EXACTA
-    df_resumen_mat_coccia, costo_total_coccia = calcular_materiales_de_df_mo(
-        df_mo_filtrado
-    )
+    # Bucle por cada proyecto donde trabajó Coccia
+    for proj_id in proyectos_de_coccia:
+      df_mo_un_proyecto = df_mo_coccia_puro[
+          df_mo_coccia_puro[col_proy_mo].astype(str).str.strip() == proj_id
+      ].copy()
 
-    if not df_resumen_mat_coccia.empty:
-      df_mostrar = df_resumen_mat_coccia.copy()
-      df_mostrar["Cantidad Requerida"] = df_mostrar[
-          "Cantidad_Total_Material"
-      ].apply(lambda x: f"{x:,.2f}")
-      df_mostrar["Precio Unitario SAP"] = df_mostrar["Precio_Oficial"].apply(
-          lambda x: f"RD$ {x:,.2f}"
-      )
-      df_mostrar["Costo Total Material"] = df_mostrar["Costo_Material"].apply(
-          lambda x: f"RD$ {x:,.2f}"
-      )
+      # Obtener nombre descriptivo del proyecto si está disponible
+      nombre_proj_desc = proj_id
+      if col_desc_proy_mo and not df_mo_un_proyecto.empty:
+        nombres_unicos = (
+            df_mo_un_proyecto[col_desc_proy_mo].dropna().astype(str).unique()
+        )
+        if len(nombres_unicos) > 0:
+          nombre_proj_desc = f"{proj_id} — {nombres_unicos[0]}"
 
-      df_mostrar = df_mostrar.rename(
+      with st.expander(f"📁 Proyecto: {nombre_proj_desc}", expanded=False):
+        # 1. Mostrar Mano de Obra de Coccia en este proyecto
+        st.markdown("##### 👷 Mano de Obra Ejecutada (Coccia)")
+        col_act_mo = buscar_columna_segura(df_mo_un_proyecto, ["actividad", "código"])
+        col_cant_mo = buscar_columna_segura(df_mo_un_proyecto, ["cantidad", "cant"])
+        
+        if col_act_mo and col_cant_mo:
+          df_mo_un_proyecto["Actividad_Clean"] = (
+              df_mo_un_proyecto[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+          )
+          df_mo_un_proyecto["Cantidad_Num"] = (
+              df_mo_un_proyecto[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
+          )
+          df_mo_resumen_proj = df_mo_un_proyecto.groupby("Actividad_Clean", as_index=False)["Cantidad_Num"].sum()
+          df_mo_resumen_proj.rename(columns={"Actividad_Clean": "Actividad", "Cantidad_Num": "Cantidad Ejecutada"}, inplace=True)
+          mostrar_tabla_html_ejecutiva(df_mo_resumen_proj)
+        else:
+          st.info("No se pudo estructurar el detalle de mano de obra.")
+
+        # 2. Calcular Materiales para este proyecto
+        st.markdown("##### 🛠️ Materiales SAP Correspondientes")
+        df_mat_proj, costo_proj = calcular_materiales_de_df_mo(df_mo_un_proyecto)
+
+        if not df_mat_proj.empty:
+          lista_df_materiales_todos.append(df_mat_proj)
+
+          df_mat_display = df_mat_proj.copy()
+          df_mat_display["Cantidad Requerida"] = df_mat_display["Cantidad_Total_Material"].apply(lambda x: f"{x:,.2f}")
+          df_mat_display["Precio Unitario SAP"] = df_mat_display["Precio_Oficial"].apply(lambda x: f"RD$ {x:,.2f}")
+          df_mat_display["Costo Total Material"] = df_mat_display["Costo_Material"].apply(lambda x: f"RD$ {x:,.2f}")
+
+          df_mat_display = df_mat_display.rename(
+              columns={
+                  "Clean_SAP": "Código SAP",
+                  "Descripcion_Oficial": "Descripción de Material",
+              }
+          )[
+              [
+                  "Código SAP",
+                  "Descripción de Material",
+                  "Cantidad Requerida",
+                  "Precio Unitario SAP",
+                  "Costo Total Material",
+              ]
+          ]
+          mostrar_tabla_html_ejecutiva(df_mat_display)
+        else:
+          st.info("Este proyecto no generó materiales teóricos asociados.")
+
+    st.markdown("---")
+    st.markdown("### 📊 MATERIAL TOTAL GLOBAL (CONSOLIDADO COCCIA)")
+
+    if len(lista_df_materiales_todos) > 0:
+      df_todos_unidos = pd.concat(lista_df_materiales_todos, ignore_index=True)
+      df_global_mat = df_todos_unidos.groupby(
+          ["Clean_SAP", "Descripcion_Oficial"], as_index=False
+      ).agg({
+          "Cantidad_Total_Material": "sum",
+          "Precio_Oficial": "first",
+          "Costo_Material": "sum"
+      })
+
+      df_global_display = df_global_mat.copy()
+      df_global_display["Cantidad Total Global"] = df_global_display["Cantidad_Total_Material"].apply(lambda x: f"{x:,.2f}")
+      df_global_display["Precio Unitario SAP"] = df_global_display["Precio_Oficial"].apply(lambda x: f"RD$ {x:,.2f}")
+      df_global_display["Costo Total Global"] = df_global_display["Costo_Material"].apply(lambda x: f"RD$ {x:,.2f}")
+
+      df_global_display = df_global_display.rename(
           columns={
               "Clean_SAP": "Código SAP",
               "Descripcion_Oficial": "Descripción de Material",
@@ -1147,35 +1207,32 @@ elif menu == "Auditoría de Almacén (Coccia)":
           [
               "Código SAP",
               "Descripción de Material",
-              "Cantidad Requerida",
+              "Cantidad Total Global",
               "Precio Unitario SAP",
-              "Costo Total Material",
+              "Costo Total Global",
           ]
       ]
 
-      st.markdown(
-          f"### 📊 Inventario Teórico de Almacén (Coccia) — {proy_auditoria}"
-      )
-      mostrar_tabla_html_ejecutiva(df_mostrar)
+      costo_global_pesos = df_global_mat["Costo_Material"].sum()
+      st.metric("💰 Costo Total de Almacén (Consolidado Coccia)", f"RD$ {costo_global_pesos:,.2f}")
+      
+      mostrar_tabla_html_ejecutiva(df_global_display)
 
       buffer = io.BytesIO()
       with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df_mostrar.to_excel(
-            writer, index=False, sheet_name="Auditoria_Coccia"
+        df_global_display.to_excel(
+            writer, index=False, sheet_name="Material_Total_Coccia"
         )
 
       st.download_button(
-          label="📥 Descargar Reporte de Auditoría (.xlsx)",
+          label="📥 Descargar Material Total Consolidado de Coccia (.xlsx)",
           data=buffer.getvalue(),
-          file_name=f"Auditoria_Coccia_{proy_auditoria}.xlsx",
+          file_name="Material_Total_Global_Coccia.xlsx",
           mime=(
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           ),
       )
     else:
-      st.warning(
-          "No se encontraron materiales calculados para la mano de obra de"
-          " Coccia."
-      )
+      st.warning("No hay materiales consolidados para mostrar.")
   else:
     st.error("Faltan archivos base para realizar la auditoría.")
