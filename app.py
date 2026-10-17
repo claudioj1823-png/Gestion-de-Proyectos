@@ -21,6 +21,7 @@ st.markdown(
     .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
     h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
     
+    /* Cajas de Resumen Ejecutivo y Narrativa */
     .resumen-gerencial-box {
         background: #ffffff;
         border-left: 5px solid #0d6efd;
@@ -43,6 +44,7 @@ st.markdown(
         margin-bottom: 0;
     }
 
+    /* Estilo HTML exacto para tablas ejecutivas EDEESTE */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
@@ -96,39 +98,6 @@ def limpiar_nombre_columnas(df):
     df = df.copy()
     df.columns = [str(c).strip().replace("\n", " ") for c in df.columns]
   return df
-
-
-def buscar_columna_segura(df, palabras_clave):
-  """Busca una columna de forma robusta por palabras clave sin usar índices fijos."""
-  if df is None or df.empty:
-    return None
-  for col in df.columns:
-    col_clean = str(col).lower().strip()
-    if any(pk in col_clean for pk in palabras_clave):
-      return col
-  return None
-
-
-def parsear_numero_seguro(val):
-  """Parsea importes y precios manejando de forma segura comas y puntos regionales."""
-  if pd.isna(val):
-    return 0.0
-  if isinstance(val, (int, float)):
-    return float(val)
-  s = str(val).strip().replace("$", "").replace(" ", "")
-  if not s or s.lower() in ["nan", "none", "null"]:
-    return 0.0
-
-  if "," in s and "." in s:
-    # Formato US (1,234.56)
-    s = s.replace(",", "")
-  elif "," in s:
-    # Formato LATAM/EU con coma decimal (1234,56)
-    s = s.replace(",", ".")
-  try:
-    return float(s)
-  except ValueError:
-    return 0.0
 
 
 @st.cache_data(ttl=0)
@@ -218,14 +187,25 @@ df_metas = datos.get("metas")
 
 dict_familia = {}
 if df_familia is not None and not df_familia.empty:
-  col_act_f = buscar_columna_segura(df_familia, ["actividad", "código", "codigo"])
-  col_fam_f = buscar_columna_segura(df_familia, ["familia"])
-  if col_act_f and col_fam_f:
-    for _, row in df_familia.iterrows():
-      act_raw = str(row[col_act_f]).strip().upper()
-      fam_raw = str(row[col_fam_f]).strip()
-      if act_raw and fam_raw and fam_raw != "nan":
-        dict_familia[act_raw] = fam_raw
+  col_act_f = next(
+      (
+          c
+          for c in df_familia.columns
+          if "actividad" in c.lower()
+          or "código" in c.lower()
+          or "codigo" in c.lower()
+      ),
+      df_familia.columns[min(0, len(df_familia.columns) - 1)],
+  )
+  col_fam_f = next(
+      (c for c in df_familia.columns if "familia" in c.lower()),
+      df_familia.columns[min(2, len(df_familia.columns) - 1)],
+  )
+  for _, row in df_familia.iterrows():
+    act_raw = str(row[col_act_f]).strip().upper()
+    fam_raw = str(row[col_fam_f]).strip()
+    if act_raw and fam_raw and fam_raw != "nan":
+      dict_familia[act_raw] = fam_raw
 
 st.sidebar.markdown("### 🎛️ FILTROS EJECUTIVOS")
 anos_disponibles = ["Todos"]
@@ -246,10 +226,14 @@ meses_disponibles = [
 ]
 
 if df_mo is not None and not df_mo.empty:
-  col_fecha_mo = buscar_columna_segura(df_mo, ["fecha", "date", "periodo"])
-  if col_fecha_mo:
+  cols_fecha = [
+      c
+      for c in df_mo.columns
+      if "fecha" in c.lower() or "date" in c.lower() or "periodo" in c.lower()
+  ]
+  if cols_fecha:
     df_mo = df_mo.copy()
-    df_mo["Fecha_Parsed"] = pd.to_datetime(df_mo[col_fecha_mo], errors="coerce")
+    df_mo["Fecha_Parsed"] = pd.to_datetime(df_mo[cols_fecha[0]], errors="coerce")
     anos_encontrados = df_mo["Fecha_Parsed"].dt.year.dropna().unique()
     if len(anos_encontrados) > 0:
       anos_disponibles = ["Todos"] + sorted(
@@ -264,16 +248,24 @@ st.sidebar.markdown("### 🎯 SELECCIÓN DE PROYECTO")
 
 lista_codigos = []
 if df_codigos is not None and not df_codigos.empty:
-  col_codigo = buscar_columna_segura(df_codigos, ["proyecto", "código", "codigo"])
-  if col_codigo:
-    lista_codigos = (
-        df_codigos[col_codigo]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .unique()
-        .tolist()
-    )
+  col_codigo = next(
+      (
+          c
+          for c in df_codigos.columns
+          if "proyecto" in c.lower()
+          or "código" in c.lower()
+          or "codigo" in c.lower()
+      ),
+      df_codigos.columns[min(0, len(df_codigos.columns) - 1)],
+  )
+  lista_codigos = (
+      df_codigos[col_codigo]
+      .dropna()
+      .astype(str)
+      .str.strip()
+      .unique()
+      .tolist()
+  )
 
 codigo_seleccionado = st.sidebar.selectbox(
     "Código de Proyecto:", ["Todos"] + lista_codigos
@@ -297,7 +289,7 @@ st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
 
 def mostrar_tabla_html_ejecutiva(df_mostrar):
   html_str = df_mostrar.to_html(
-      index=False, classes="tabla-ejecutiva", escape=False
+      index=False, classes="tabla-ejecutiva", escape=True
   )
   st.markdown(
       f'<div class="tabla-ejecutiva-container">{html_str}</div>',
@@ -314,13 +306,16 @@ if menu == "Panel Ejecutivo por Proyecto":
 
     nombre_proyecto_str = cod_clean
     if df_codigos is not None and not df_codigos.empty:
-      col_codigo_p = buscar_columna_segura(
-          df_codigos, ["proyecto", "código", "codigo"]
-      )
-      col_desc_p = buscar_columna_segura(
-          df_codigos, ["nombre", "descripci", "descripcion"]
-      )
-      if col_codigo_p and col_desc_p:
+      col_codigo_p = df_codigos.columns[min(0, len(df_codigos.columns) - 1)]
+      cols_desc_p = [
+          c
+          for c in df_codigos.columns
+          if "nombre" in c.lower()
+          or "descripci" in c.lower()
+          or ("proyecto" in c.lower() and c != col_codigo_p)
+      ]
+      if cols_desc_p:
+        col_desc_p = cols_desc_p[0]
         df_codigos_copy = df_codigos.copy()
         df_codigos_copy["Clean_Cod"] = (
             df_codigos_copy[col_codigo_p].astype(str).str.strip()
@@ -340,56 +335,91 @@ if menu == "Panel Ejecutivo por Proyecto":
     monto_mo = 0.0
     df_mo_proy = pd.DataFrame()
     if df_mo is not None and not df_mo.empty:
-      col_proy_mo = buscar_columna_segura(df_mo, ["proyecto", "código proyecto"])
-      col_costo_mo = buscar_columna_segura(df_mo, ["costo total", "costo"])
+      col_proy_mo = next(
+          (
+              c
+              for c in df_mo.columns
+              if "código proyecto" in c.lower()
+              or "codigo proyecto" in c.lower()
+              or "proyecto" in c.lower()
+          ),
+          df_mo.columns[-2],
+      )
+      col_costo_mo = next(
+          (c for c in df_mo.columns if c.lower().strip() == "costo total"), None
+      )
+      if not col_costo_mo:
+        col_costo_mo = next(
+            (c for c in df_mo.columns if "costo total" in c.lower()),
+            df_mo.columns[min(5, len(df_mo.columns) - 1)],
+        )
 
-      if col_proy_mo and col_costo_mo:
-        df_mo_proy = df_mo[
-            df_mo[col_proy_mo].astype(str).str.strip() == cod_clean
-        ].copy()
+      df_mo_proy = df_mo[
+          df_mo[col_proy_mo].astype(str).str.strip() == cod_clean
+      ].copy()
 
-        if "Fecha_Parsed" in df_mo_proy.columns:
-          if ano_sel != "Todos":
-            df_mo_proy = df_mo_proy[
-                df_mo_proy["Fecha_Parsed"].dt.year == int(ano_sel)
-            ]
-          if mes_sel != "Todos":
-            meses_dict = {
-                "Enero": 1,
-                "Febrero": 2,
-                "Marzo": 3,
-                "Abril": 4,
-                "Mayo": 5,
-                "Junio": 6,
-                "Julio": 7,
-                "Agosto": 8,
-                "Septiembre": 9,
-                "Octubre": 10,
-                "Noviembre": 11,
-                "Diciembre": 12,
-            }
-            df_mo_proy = df_mo_proy[
-                df_mo_proy["Fecha_Parsed"].dt.month
-                == meses_dict.get(mes_sel, 0)
-            ]
+      if "Fecha_Parsed" in df_mo_proy.columns:
+        if ano_sel != "Todos":
+          df_mo_proy = df_mo_proy[
+              df_mo_proy["Fecha_Parsed"].dt.year == int(ano_sel)
+          ]
+        if mes_sel != "Todos":
+          meses_dict = {
+              "Enero": 1,
+              "Febrero": 2,
+              "Marzo": 3,
+              "Abril": 4,
+              "Mayo": 5,
+              "Junio": 6,
+              "Julio": 7,
+              "Agosto": 8,
+              "Septiembre": 9,
+              "Octubre": 10,
+              "Noviembre": 11,
+              "Diciembre": 12,
+          }
+          df_mo_proy = df_mo_proy[
+              df_mo_proy["Fecha_Parsed"].dt.month
+              == meses_dict.get(mes_sel, 0)
+          ]
 
-        monto_mo = df_mo_proy[col_costo_mo].apply(parsear_numero_seguro).sum()
+      serie_costos = (
+          df_mo_proy[col_costo_mo]
+          .astype(str)
+          .str.replace("$", "", regex=False)
+          .str.replace(",", "", regex=False)
+          .str.strip()
+      )
+      monto_mo = pd.to_numeric(serie_costos, errors="coerce").sum()
 
     presupuesto_plan = 0.0
     if df_metas is not None and not df_metas.empty:
-      col_proy_meta = buscar_columna_segura(df_metas, ["proyecto", "código"])
-      col_presupuesto = buscar_columna_segura(df_metas, ["presupuesto"])
+      col_proy_meta = next(
+          (
+              c
+              for c in df_metas.columns
+              if "proyecto" in c.lower()
+              or "código" in c.lower()
+              or "codigo" in c.lower()
+          ),
+          df_metas.columns[min(0, len(df_metas.columns) - 1)],
+      )
+      col_presupuesto = next(
+          (c for c in df_metas.columns if "presupuesto" in c.lower()),
+          df_metas.columns[-1],
+      )
 
-      if col_proy_meta and col_presupuesto:
-        df_metas_copy = df_metas.copy()
-        df_metas_copy["Clean_Proy"] = (
-            df_metas_copy[col_proy_meta].astype(str).str.strip()
-        )
-        df_meta_proy = df_metas_copy[df_metas_copy["Clean_Proy"] == cod_clean]
-        if not df_meta_proy.empty:
-          presupuesto_plan = parsear_numero_seguro(
-              df_meta_proy.iloc[0][col_presupuesto]
-          )
+      df_metas_copy = df_metas.copy()
+      df_metas_copy["Clean_Proy"] = (
+          df_metas_copy[col_proy_meta].astype(str).str.strip()
+      )
+      df_meta_proy = df_metas_copy[df_metas_copy["Clean_Proy"] == cod_clean]
+
+      val_presupuesto = pd.to_numeric(
+          df_meta_proy[col_presupuesto], errors="coerce"
+      ).dropna()
+      if not val_presupuesto.empty:
+        presupuesto_plan = val_presupuesto.iloc[0]
 
     costo_materiales_total = 0.0
     df_materiales_mostrador = pd.DataFrame()
@@ -406,244 +436,308 @@ if menu == "Panel Ejecutivo por Proyecto":
     ):
       fuente_mat = df_contratistas.copy()
 
-      col_act_mo = buscar_columna_segura(df_mo_proy, ["actividad", "código"])
-      col_cant_mo = buscar_columna_segura(df_mo_proy, ["cantidad", "cant"])
-      col_unds_mo = buscar_columna_segura(df_mo_proy, ["unds", "und", "unidad"])
+      col_act_mo = next(
+          (
+              c
+              for c in df_mo_proy.columns
+              if c.lower().strip() == "código"
+              or "actividad" in c.lower()
+              or "código" in c.lower()
+          ),
+          df_mo_proy.columns[min(0, len(df_mo_proy.columns) - 1)],
+      )
+      col_cant_mo = next(
+          (
+              c
+              for c in df_mo_proy.columns
+              if c.lower().strip() == "cantidad" or "cant" in c.lower()
+          ),
+          df_mo_proy.columns[min(4, len(df_mo_proy.columns) - 1)],
+      )
+      col_unds_mo = next(
+          (
+              c
+              for c in df_mo_proy.columns
+              if c.lower().strip() == "unds."
+              or "und" in c.lower()
+              or "unidad" in c.lower()
+          ),
+          None,
+      )
 
-      if col_act_mo and col_cant_mo:
-        df_mo_proy = df_mo_proy.copy()
-        df_mo_proy["Actividad_Clean"] = (
-            df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+      df_mo_proy = df_mo_proy.copy()
+      df_mo_proy["Actividad_Clean"] = (
+          df_mo_proy[col_act_mo].fillna("").astype(str).str.strip().str.upper()
+      )
+      df_mo_proy["Cantidad_Num"] = pd.to_numeric(
+          df_mo_proy[col_cant_mo], errors="coerce"
+      ).fillna(0)
+      df_mo_proy["Familia_Accion"] = (
+          df_mo_proy["Actividad_Clean"].map(dict_familia).fillna("OTRA")
+      )
+
+      if col_unds_mo:
+        df_mo_proy["Unds_Clean"] = (
+            df_mo_proy[col_unds_mo].fillna("").astype(str).str.strip().str.upper()
         )
-        df_mo_proy["Cantidad_Num"] = (
-            df_mo_proy[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
-        )
-        df_mo_proy["Familia_Accion"] = (
-            df_mo_proy["Actividad_Clean"].map(dict_familia).fillna("OTRA")
+        df_mo_fisico = df_mo_proy[
+            ~df_mo_proy["Unds_Clean"].str.contains("HORA|HR")
+        ].copy()
+      else:
+        df_mo_fisico = df_mo_proy[
+            ~df_mo_proy["Actividad_Clean"].str.startswith(("HNBR", "DFAC"))
+        ].copy()
+
+      df_mo_agrupado = df_mo_fisico.groupby(
+          ["Familia_Accion", "Actividad_Clean"], as_index=False
+      )["Cantidad_Num"].sum()
+      df_mo_agrupado.rename(
+          columns={
+              "Familia_Accion": "Familia / Acción",
+              "Actividad_Clean": "Actividad",
+              "Cantidad_Num": "Cantidad Ejecutada",
+          },
+          inplace=True,
+      )
+
+      dict_cant_mo = dict(
+          zip(df_mo_agrupado["Actividad"], df_mo_agrupado["Cantidad Ejecutada"])
+      )
+
+      col_act_mat = next(
+          (c for c in fuente_mat.columns if "actividad" in c.lower()),
+          fuente_mat.columns[min(0, len(fuente_mat.columns) - 1)],
+      )
+      col_sap_mat = next(
+          (
+              c
+              for c in fuente_mat.columns
+              if "sap" in c.lower()
+              or "código sap" in c.lower()
+              or "codigo sap" in c.lower()
+          ),
+          fuente_mat.columns[min(4, len(fuente_mat.columns) - 1)],
+      )
+      col_cant_mat = next(
+          (
+              c
+              for c in fuente_mat.columns
+              if "cantidad" in c.lower() or "cant" in c.lower()
+          ),
+          fuente_mat.columns[min(7, len(fuente_mat.columns) - 1)],
+      )
+
+      fuente_mat["Actividad_Clean"] = (
+          fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
+      )
+      fuente_mat["Clean_SAP"] = (
+          fuente_mat[col_sap_mat]
+          .fillna("")
+          .astype(str)
+          .str.strip()
+          .str.replace(r"\.0$", "", regex=True)
+      )
+      fuente_mat["Cantidad_Unitaria_Num"] = pd.to_numeric(
+          fuente_mat[col_cant_mat], errors="coerce"
+      ).fillna(0)
+
+      fuente_mat = fuente_mat[
+          ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
+      ]
+
+      fuente_mat_clean = fuente_mat.groupby(
+          ["Actividad_Clean", "Clean_SAP"], as_index=False
+      )["Cantidad_Unitaria_Num"].first()
+      df_filtrado = fuente_mat_clean[
+          fuente_mat_clean["Actividad_Clean"].isin(dict_cant_mo.keys())
+      ].copy()
+
+      if not df_filtrado.empty:
+        df_filtrado["Cant_IDP"] = df_filtrado["Actividad_Clean"].map(
+            dict_cant_mo
         )
 
-        if col_unds_mo:
-          df_mo_proy["Unds_Clean"] = (
-              df_mo_proy[col_unds_mo]
-              .fillna("")
-              .astype(str)
-              .str.strip()
-              .str.upper()
-          )
-          df_mo_fisico = df_mo_proy[
-              ~df_mo_proy["Unds_Clean"].str.contains("HORA|HR")
-          ].copy()
-        else:
-          df_mo_fisico = df_mo_proy[
-              ~df_mo_proy["Actividad_Clean"].str.startswith(("HNBR", "DFAC"))
-          ].copy()
+        # Regla de negocio: para cada actividad, la cantidad del material
+        # corresponde a la cantidad ejecutada en mano de obra. Las filas
+        # repetidas de Actividades contratistas ya se deduplicaron por
+        # Actividad_Clean + Clean_SAP, por lo que no inflan la cantidad.
+        df_filtrado["Cantidad_Total_Material"] = df_filtrado["Cant_IDP"]
 
-        df_mo_agrupado = df_mo_fisico.groupby(
-            ["Familia_Accion", "Actividad_Clean"], as_index=False
-        )["Cantidad_Num"].sum()
-        df_mo_agrupado.rename(
+        col_sap_prec = next(
+            (
+                c
+                for c in df_sap.columns
+                if "sap" in c.lower() or "código" in c.lower()
+            ),
+            df_sap.columns[min(0, len(df_sap.columns) - 1)],
+        )
+        col_desc_sap = next(
+            (c for c in df_sap.columns if "descripci" in c.lower()),
+            df_sap.columns[min(1, len(df_sap.columns) - 1)],
+        )
+        col_precio_final = next(
+            (
+                c
+                for c in df_sap.columns
+                if "precio" in c.lower() or "costo" in c.lower()
+            ),
+            df_sap.columns[min(2, len(df_sap.columns) - 1)],
+        )
+
+        df_sap_copy = df_sap.copy()
+        df_sap_copy["Clean_SAP"] = (
+            df_sap_copy[col_sap_prec]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.replace(r"\.0$", "", regex=True)
+        )
+        df_sap_copy["Descripcion_Oficial"] = (
+            df_sap_copy[col_desc_sap].fillna("").astype(str)
+        )
+        df_sap_copy["Precio_Oficial"] = pd.to_numeric(
+            df_sap_copy[col_precio_final]
+            .astype(str)
+            .str.replace("$", "")
+            .str.replace(",", ""),
+            errors="coerce",
+        ).fillna(0.0)
+
+        df_sap_limpio = df_sap_copy[
+            ["Clean_SAP", "Descripcion_Oficial", "Precio_Oficial"]
+        ].drop_duplicates(subset=["Clean_SAP"])
+        df_merge_sap = pd.merge(
+            df_filtrado, df_sap_limpio, on="Clean_SAP", how="left"
+        )
+
+        df_resumen_mat = df_merge_sap.groupby(
+            ["Clean_SAP", "Descripcion_Oficial"], as_index=False
+        ).agg(
+            {
+                "Cantidad_Total_Material": "sum",
+                "Precio_Oficial": "first",
+            }
+        )
+
+        df_resumen_mat["Costo_Material"] = (
+            df_resumen_mat["Cantidad_Total_Material"]
+            * df_resumen_mat["Precio_Oficial"]
+        )
+
+        costo_materiales_total = df_resumen_mat["Costo_Material"].sum()
+
+        df_display = df_resumen_mat.copy()
+        df_display["Cantidad Total"] = df_display[
+            "Cantidad_Total_Material"
+        ].apply(lambda x: f"{x:,.2f}")
+        df_display["Precio Unitario SAP"] = df_display["Precio_Oficial"].apply(
+            lambda x: f"RD$ {x:,.2f}"
+        )
+        df_display["Costo Total"] = df_display["Costo_Material"].apply(
+            lambda x: f"RD$ {x:,.2f}"
+        )
+
+        df_display = df_display.rename(
             columns={
-                "Familia_Accion": "Familia / Acción",
-                "Actividad_Clean": "Actividad",
-                "Cantidad_Num": "Cantidad Ejecutada",
-            },
-            inplace=True,
-        )
+                "Clean_SAP": "Código SAP",
+                "Descripcion_Oficial": "Descripción de Material",
+            }
+        )[
+            [
+                "Código SAP",
+                "Descripción de Material",
+                "Cantidad Total",
+                "Precio Unitario SAP",
+                "Costo Total",
+            ]
+        ]
 
-        dict_cant_mo = dict(
-            zip(
-                df_mo_agrupado["Actividad"], df_mo_agrupado["Cantidad Ejecutada"]
-            )
-        )
-
-        col_act_mat = buscar_columna_segura(fuente_mat, ["actividad"])
-        col_sap_mat = buscar_columna_segura(fuente_mat, ["sap", "código sap"])
-        col_cant_mat = buscar_columna_segura(fuente_mat, ["cantidad", "cant"])
-
-        if col_act_mat and col_sap_mat and col_cant_mat:
-          fuente_mat["Actividad_Clean"] = (
-              fuente_mat[col_act_mat]
-              .fillna("")
-              .astype(str)
-              .str.strip()
-              .str.upper()
-          )
-          fuente_mat["Clean_SAP"] = (
-              fuente_mat[col_sap_mat]
-              .fillna("")
-              .astype(str)
-              .str.strip()
-              .str.replace(r"\.0$", "", regex=True)
-          )
-          fuente_mat["Cantidad_Unitaria_Num"] = (
-              fuente_mat[col_cant_mat].apply(parsear_numero_seguro).fillna(0)
-          )
-
-          fuente_mat = fuente_mat[
-              ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
-          ]
-          fuente_mat_clean = fuente_mat.groupby(
-              ["Actividad_Clean", "Clean_SAP"], as_index=False
-          )["Cantidad_Unitaria_Num"].first()
-          df_filtrado = fuente_mat_clean[
-              fuente_mat_clean["Actividad_Clean"].isin(dict_cant_mo.keys())
-          ].copy()
-
-          if not df_filtrado.empty:
-            df_filtrado["Cant_IDP"] = df_filtrado["Actividad_Clean"].map(
-                dict_cant_mo
-            )
-            condicion_especial = (
-                df_filtrado["Actividad_Clean"] == "1VA-MT"
-            ) & (df_filtrado["Clean_SAP"] == "1000130")
-            df_filtrado["Cantidad_Total_Material"] = np.where(
-                condicion_especial,
-                df_filtrado["Cant_IDP"],
-                df_filtrado["Cantidad_Unitaria_Num"]
-                * df_filtrado["Cant_IDP"],
-            )
-
-            col_sap_prec = buscar_columna_segura(df_sap, ["sap", "código"])
-            col_desc_sap = buscar_columna_segura(df_sap, ["descripci"])
-            col_precio_final = buscar_columna_segura(df_sap, ["precio", "costo"])
-
-            if col_sap_prec and col_desc_sap and col_precio_final:
-              df_sap_copy = df_sap.copy()
-              df_sap_copy["Clean_SAP"] = (
-                  df_sap_copy[col_sap_prec]
-                  .fillna("")
-                  .astype(str)
-                  .str.strip()
-                  .str.replace(r"\.0$", "", regex=True)
-              )
-              df_sap_copy["Descripcion_Oficial"] = (
-                  df_sap_copy[col_desc_sap].fillna("").astype(str)
-              )
-              df_sap_copy["Precio_Oficial"] = df_sap_copy[
-                  col_precio_final
-              ].apply(parsear_numero_seguro)
-
-              df_sap_limpio = df_sap_copy[
-                  ["Clean_SAP", "Descripcion_Oficial", "Precio_Oficial"]
-              ].drop_duplicates(subset=["Clean_SAP"])
-              df_merge_sap = pd.merge(
-                  df_filtrado, df_sap_limpio, on="Clean_SAP", how="left"
-              )
-
-              df_resumen_mat = df_merge_sap.groupby(
-                  ["Clean_SAP", "Descripcion_Oficial"], as_index=False
-              ).agg(
-                  {
-                      "Cantidad_Total_Material": "sum",
-                      "Precio_Oficial": "first",
-                  }
-              )
-              df_resumen_mat["Costo_Material"] = (
-                  df_resumen_mat["Cantidad_Total_Material"]
-                  * df_resumen_mat["Precio_Oficial"]
-              )
-              costo_materiales_total = df_resumen_mat["Costo_Material"].sum()
-
-              df_display = df_resumen_mat.copy()
-              df_display["Cantidad Total"] = df_display[
-                  "Cantidad_Total_Material"
-              ].apply(lambda x: f"{x:,.2f}")
-              df_display["Precio Unitario SAP"] = df_display[
-                  "Precio_Oficial"
-              ].apply(lambda x: f"RD$ {x:,.2f}")
-              df_display["Costo Total"] = df_display["Costo_Material"].apply(
-                  lambda x: f"RD$ {x:,.2f}"
-              )
-
-              df_display = df_display.rename(
-                  columns={
-                      "Clean_SAP": "Código SAP",
-                      "Descripcion_Oficial": "Descripción de Material",
-                  }
-              )[
-                  [
-                      "Código SAP",
-                      "Descripción de Material",
-                      "Cantidad Total",
-                      "Precio Unitario SAP",
-                      "Costo Total",
-                  ]
-              ]
-              df_materiales_mostrador = df_display
+        df_materiales_mostrador = df_display
 
     df_avance_acciones = pd.DataFrame()
     if df_metas is not None and not df_metas.empty:
-      col_proy_m = buscar_columna_segura(df_metas, ["proyecto", "código"])
-      col_accion_meta = buscar_columna_segura(df_metas, ["accion", "actividad"])
-      col_cant_plan = buscar_columna_segura(
-          df_metas, ["cantidad", "planificada", "planificado"]
+      col_proy_m = next(
+          (
+              c
+              for c in df_metas.columns
+              if "proyecto" in c.lower()
+              or "código" in c.lower()
+              or "codigo" in c.lower()
+          ),
+          df_metas.columns[min(0, len(df_metas.columns) - 1)],
       )
+      df_metas_copy2 = df_metas.copy()
+      df_metas_copy2["Clean_P_Meta"] = (
+          df_metas_copy2[col_proy_m].astype(str).str.strip()
+      )
+      df_meta_proy_filt = df_metas_copy2[
+          df_metas_copy2["Clean_P_Meta"] == cod_clean
+      ].copy()
 
-      if col_proy_m and col_accion_meta and col_cant_plan:
-        df_metas_copy2 = df_metas.copy()
-        df_metas_copy2["Clean_P_Meta"] = (
-            df_metas_copy2[col_proy_m].astype(str).str.strip()
+      if not df_meta_proy_filt.empty:
+        col_accion_meta = next(
+            (
+                c
+                for c in df_meta_proy_filt.columns
+                if "accion" in c.lower() or "actividad" in c.lower()
+            ),
+            df_meta_proy_filt.columns[min(3, len(df_meta_proy_filt.columns) - 1)],
         )
-        df_meta_proy_filt = df_metas_copy2[
-            df_metas_copy2["Clean_P_Meta"] == cod_clean
-        ].copy()
+        col_cant_plan = next(
+            (
+                c
+                for c in df_meta_proy_filt.columns
+                if "cantidad" in c.lower() or "planifica" in c.lower()
+            ),
+            df_meta_proy_filt.columns[min(4, len(df_meta_proy_filt.columns) - 1)],
+        )
 
-        if not df_meta_proy_filt.empty:
-          df_meta_proy_filt["Acción"] = (
-              df_meta_proy_filt[col_accion_meta]
-              .fillna("")
-              .astype(str)
-              .str.strip()
-          )
-          df_meta_proy_filt["Acción_Key"] = (
-              df_meta_proy_filt["Acción"].str.upper().str.strip()
-          )
-          df_meta_proy_filt["Planificado"] = (
-              df_meta_proy_filt[col_cant_plan]
-              .apply(parsear_numero_seguro)
-              .fillna(0)
-          )
+        df_meta_proy_filt["Acción"] = (
+            df_meta_proy_filt[col_accion_meta].fillna("").astype(str).str.strip()
+        )
+        df_meta_proy_filt["Acción_Key"] = (
+            df_meta_proy_filt["Acción"].str.upper().str.strip()
+        )
+        df_meta_proy_filt["Planificado"] = pd.to_numeric(
+            df_meta_proy_filt[col_cant_plan], errors="coerce"
+        ).fillna(0)
 
-          if not df_mo_fisico.empty:
-            df_mo_fisico_copy = df_mo_fisico.copy()
-            df_mo_fisico_copy["Familia_Key"] = (
-                df_mo_fisico_copy["Familia_Accion"].str.upper().str.strip()
+        if not df_mo_fisico.empty:
+          df_mo_fisico_copy = df_mo_fisico.copy()
+          df_mo_fisico_copy["Familia_Key"] = (
+              df_mo_fisico_copy["Familia_Accion"].str.upper().str.strip()
+          )
+          df_ejec_fam = df_mo_fisico_copy.groupby(
+              "Familia_Key", as_index=False
+          )["Cantidad_Num"].sum()
+          df_ejec_fam.rename(
+              columns={"Familia_Key": "Acción_Key", "Cantidad_Num": "Ejecutado"},
+              inplace=True,
+          )
+        else:
+          df_ejec_fam = pd.DataFrame(columns=["Acción_Key", "Ejecutado"])
+
+        df_avance_acciones = pd.merge(
+            df_meta_proy_filt[["Acción", "Acción_Key", "Planificado"]],
+            df_ejec_fam[["Acción_Key", "Ejecutado"]],
+            on="Acción_Key",
+            how="left",
+        ).fillna(0)
+
+        df_avance_acciones = df_avance_acciones[["Acción", "Planificado", "Ejecutado"]]
+
+        df_avance_acciones["Num_Avance"] = np.where(
+            df_avance_acciones["Planificado"] > 0,
+            (
+                df_avance_acciones["Ejecutado"]
+                / df_avance_acciones["Planificado"]
             )
-            df_ejec_fam = df_mo_fisico_copy.groupby(
-                "Familia_Key", as_index=False
-            )["Cantidad_Num"].sum()
-            df_ejec_fam.rename(
-                columns={
-                    "Familia_Key": "Acción_Key",
-                    "Cantidad_Num": "Ejecutado",
-                },
-                inplace=True,
-            )
-          else:
-            df_ejec_fam = pd.DataFrame(columns=["Acción_Key", "Ejecutado"])
-
-          df_avance_acciones = pd.merge(
-              df_meta_proy_filt[["Acción", "Acción_Key", "Planificado"]],
-              df_ejec_fam[["Acción_Key", "Ejecutado"]],
-              on="Acción_Key",
-              how="left",
-          ).fillna(0)
-
-          df_avance_acciones = df_avance_acciones[
-              ["Acción", "Planificado", "Ejecutado"]
-          ]
-          df_avance_acciones["Num_Avance"] = np.where(
-              df_avance_acciones["Planificado"] > 0,
-              (
-                  df_avance_acciones["Ejecutado"]
-                  / df_avance_acciones["Planificado"]
-              )
-              * 100,
-              0.0,
-          )
-          df_avance_acciones["% Avance"] = df_avance_acciones[
-              "Num_Avance"
-          ].apply(lambda x: f"{x:.1f}%")
+            * 100,
+            0.0,
+        )
+        df_avance_acciones["% Avance"] = df_avance_acciones["Num_Avance"].apply(
+            lambda x: f"{x:.1f}%"
+        )
 
     total_ejecutado = monto_mo + costo_materiales_total
     porcentaje_ejecutado = (
@@ -747,6 +841,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             presupuesto_plan,
         ],
     })
+
     df_grafico["Texto_Monto"] = df_grafico["Monto (RD$)"].apply(
         lambda x: f"RD$ {x:,.2f}"
     )
@@ -813,6 +908,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               ),
               secondary_y=False,
           )
+
           fig_comb.add_trace(
               go.Bar(
                   x=df_normal["Acción"],
@@ -838,6 +934,7 @@ if menu == "Panel Ejecutivo por Proyecto":
               ),
               secondary_y=True,
           )
+
           fig_comb.add_trace(
               go.Bar(
                   x=df_cond["Acción"],
@@ -878,6 +975,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         fig_comb.update_yaxes(
             title_text="% Avance / Metros", secondary_y=True, range=[0, 130]
         )
+
         st.plotly_chart(fig_comb, use_container_width=True)
 
       with col_av_2:
@@ -895,6 +993,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                 )
             ]
         )
+
         fig_donut.update_layout(
             title=dict(
                 text="<b>Avance Global del Proyecto</b>",
@@ -931,6 +1030,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             f"{int(row['Ejecutado']):,}",
             row["% Avance"],
         ]
+
       df_tabla_avance_clean.insert(
           0, "Métrica / Concepto", ["Planificado", "Ejecutado", "% Avance"]
       )
@@ -989,52 +1089,59 @@ elif menu == "Mapa Interactivo de Proyectos":
       ],
   })
   st.map(map_data)
-  st.caption("Ubicación satelital y puntos de ejecución del proyecto.")
+  st.caption("Mapa de referencia con puntos de ubicación configurados en el código; no es una vista satelital ni se alimenta automáticamente de los Excel.")
 
 # =====================================================================
-# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) - BLINDADO Y SEGURO
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA)
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
   st.subheader("📦 Auditoría de Materiales por Almacén - Contratista COCCIA")
   st.markdown(
-      "Este módulo filtra estrictamente la **mano de obra ejecutada por"
-      " Coccia** mediante validación de columnas y relaciona los coeficientes"
-      " unitarios reales para calcular el inventario de almacén sin sesgos."
+      "Este módulo filtra la **mano de obra ejecutada por Coccia** y la"
+      " relaciona con la matriz de materiales para calcular el **inventario"
+      " teórico real de almacén**."
   )
 
   if df_mo is not None and df_contratistas is not None and df_sap is not None:
-    col_contratista = buscar_columna_segura(
-        df_mo, ["contrata", "contratista", "empresa", "proveedor"]
+    # 1. Identificar columna de Contratista
+    col_contratista = next(
+        (
+            c
+            for c in df_mo.columns
+            if "contrata" in c.lower()
+            or "contratista" in c.lower()
+            or "empresa" in c.lower()
+            or "proveedor" in c.lower()
+        ),
+        None,
     )
 
-    if col_contratista is None:
+    df_mo_coccia = df_mo.copy()
+    if col_contratista:
+      df_mo_coccia = df_mo_coccia[
+          df_mo_coccia[col_contratista]
+          .astype(str)
+          .str.upper()
+          .str.contains("COCCIA|CEBALLOS", na=False)
+      ]
+    else:
       st.error(
-          "⚠️ **Error de Auditoría:** No se encontró la columna de"
-          " 'Contratista' / 'Contrata' en el archivo de Mano de Obra. Por"
-          " seguridad, la aplicación se detiene para evitar procesar datos"
-          " erróneos."
+          "No se encontró una columna de contratista/empresa/proveedor en "
+          "'Mano de Obra por proyecto.xlsx'. La auditoría se detuvo para "
+          "evitar mezclar registros de otros contratistas."
       )
-      st.stop()
+      df_mo_coccia = df_mo_coccia.iloc[0:0].copy()
 
-    df_mo_coccia = df_mo[
-        df_mo[col_contratista]
-        .astype(str)
-        .str.upper()
-        .str.contains("COCCIA|CEBALLOS", na=False)
-    ].copy()
-
-    if df_mo_coccia.empty:
-      st.warning(
-          "⚠️ No se encontraron registros de mano de obra asociados al"
-          " contratista 'COCCIA' o 'CEBALLOS' en la base de datos."
-      )
-      st.stop()
-
-    col_proy = buscar_columna_segura(
-        df_mo_coccia, ["código proyecto", "codigo proyecto", "proyecto"]
+    col_proy = next(
+        (
+            c
+            for c in df_mo_coccia.columns
+            if "código proyecto" in c.lower()
+            or "codigo proyecto" in c.lower()
+            or "proyecto" in c.lower()
+        ),
+        df_mo_coccia.columns[-2],
     )
-    if not col_proy:
-      col_proy = df_mo_coccia.columns[-2]
 
     proyectos_coccia = (
         df_mo_coccia[col_proy]
@@ -1057,23 +1164,34 @@ elif menu == "Auditoría de Almacén (Coccia)":
           df_mo_filtrado[col_proy].astype(str).str.strip() == proy_auditoria
       ]
 
-    col_act_mo = buscar_columna_segura(df_mo_filtrado, ["código", "actividad"])
-    col_cant_mo = buscar_columna_segura(df_mo_filtrado, ["cantidad", "cant"])
-
-    if not col_act_mo or not col_cant_mo:
-      st.error(
-          "⚠️ No se pudieron detectar las columnas de Actividad o Cantidad en"
-          " Mano de Obra."
-      )
-      st.stop()
+    # 2. Agrupar Mano de Obra por Actividad (ej. 1CO-004)
+    col_act_mo = next(
+        (
+            c
+            for c in df_mo_filtrado.columns
+            if c.lower().strip() == "código"
+            or "actividad" in c.lower()
+            or "código" in c.lower()
+        ),
+        df_mo_filtrado.columns[min(0, len(df_mo_filtrado.columns) - 1)],
+    )
+    col_cant_mo = next(
+        (
+            c
+            for c in df_mo_filtrado.columns
+            if c.lower().strip() == "cantidad" or "cant" in c.lower()
+        ),
+        df_mo_filtrado.columns[min(4, len(df_mo_filtrado.columns) - 1)],
+    )
 
     df_mo_filtrado["Actividad_Clean"] = (
         df_mo_filtrado[col_act_mo].fillna("").astype(str).str.strip().str.upper()
     )
-    df_mo_filtrado["Cantidad_Num"] = (
-        df_mo_filtrado[col_cant_mo].apply(parsear_numero_seguro).fillna(0)
-    )
+    df_mo_filtrado["Cantidad_Num"] = pd.to_numeric(
+        df_mo_filtrado[col_cant_mo], errors="coerce"
+    ).fillna(0)
 
+    # Agrupar suma total de metros/unidades por cada Actividad
     df_agrup_mo = df_mo_filtrado.groupby("Actividad_Clean", as_index=False)[
         "Cantidad_Num"
     ].sum()
@@ -1081,17 +1199,30 @@ elif menu == "Auditoría de Almacén (Coccia)":
         zip(df_agrup_mo["Actividad_Clean"], df_agrup_mo["Cantidad_Num"])
     )
 
+    # 3. Matriz de Contratistas: Desduplicar contratas para tomar exactamente el factor unitario
     fuente_mat = df_contratistas.copy()
-    col_act_mat = buscar_columna_segura(fuente_mat, ["actividad"])
-    col_sap_mat = buscar_columna_segura(fuente_mat, ["sap", "código sap"])
-    col_cant_mat = buscar_columna_segura(fuente_mat, ["cantidad", "cant"])
-
-    if not col_act_mat or not col_sap_mat or not col_cant_mat:
-      st.error(
-          "⚠️ Faltan columnas clave (Actividad, Código SAP o Cantidad) en la"
-          " matriz de contratistas."
-      )
-      st.stop()
+    col_act_mat = next(
+        (c for c in fuente_mat.columns if "actividad" in c.lower()),
+        fuente_mat.columns[min(0, len(fuente_mat.columns) - 1)],
+    )
+    col_sap_mat = next(
+        (
+            c
+            for c in fuente_mat.columns
+            if "sap" in c.lower()
+            or "código sap" in c.lower()
+            or "codigo sap" in c.lower()
+        ),
+        fuente_mat.columns[min(4, len(fuente_mat.columns) - 1)],
+    )
+    col_cant_mat = next(
+        (
+            c
+            for c in fuente_mat.columns
+            if "cantidad" in c.lower() or "cant" in c.lower()
+        ),
+        fuente_mat.columns[min(7, len(fuente_mat.columns) - 1)],
+    )
 
     fuente_mat["Actividad_Clean"] = (
         fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
@@ -1103,18 +1234,20 @@ elif menu == "Auditoría de Almacén (Coccia)":
         .str.strip()
         .str.replace(r"\.0$", "", regex=True)
     )
-    fuente_mat["Cant_Unitaria"] = (
-        fuente_mat[col_cant_mat].apply(parsear_numero_seguro).fillna(0)
-    )
+    fuente_mat["Cant_Unitaria"] = pd.to_numeric(
+        fuente_mat[col_cant_mat], errors="coerce"
+    ).fillna(0)
 
     fuente_mat_clean = fuente_mat[
         ~fuente_mat["Clean_SAP"].isin(["", "NAN", "NONE", "0"])
     ]
-    # Desduplicación estricta para asegurar que no se multipliquen coeficientes por contratista
+
+    # Quedarse con un único factor por Actividad y Código SAP (evita duplicar coeficientes de contratistas)
     fuente_mat_dedup = fuente_mat_clean.groupby(
         ["Actividad_Clean", "Clean_SAP"], as_index=False
     )["Cant_Unitaria"].first()
 
+    # Filtrar solo las actividades ejecutadas en la mano de obra
     df_mat_filtrado = fuente_mat_dedup[
         fuente_mat_dedup["Actividad_Clean"].isin(dict_cantidades.keys())
     ].copy()
@@ -1124,25 +1257,34 @@ elif menu == "Auditoría de Almacén (Coccia)":
           "Actividad_Clean"
       ].map(dict_cantidades)
 
-      cond_especial = (df_mat_filtrado["Actividad_Clean"] == "1VA-MT") & (
-          df_mat_filtrado["Clean_SAP"] == "1000130"
-      )
-      df_mat_filtrado["Cantidad_Total_Material"] = np.where(
-          cond_especial,
-          df_mat_filtrado["Cant_Ejecutada_MO"],
-          df_mat_filtrado["Cant_Unitaria"]
-          * df_mat_filtrado["Cant_Ejecutada_MO"],
-      )
+      # Aplicar la misma regla general en la auditoría: cantidad del material
+      # = cantidad ejecutada en mano de obra; no multiplicar por cada fila
+      # o coeficiente repetido en Actividades contratistas.
+      df_mat_filtrado["Cantidad_Total_Material"] = df_mat_filtrado[
+          "Cant_Ejecutada_MO"
+      ]
 
-      col_sap_p = buscar_columna_segura(df_sap, ["sap", "código"])
-      col_desc_p = buscar_columna_segura(df_sap, ["descripci"])
-      col_prec_p = buscar_columna_segura(df_sap, ["precio", "costo"])
-
-      if not col_sap_p or not col_desc_p or not col_prec_p:
-        st.error(
-            "⚠️ Faltan columnas oficiales en el archivo de Precios SAP.xlsx"
-        )
-        st.stop()
+      # 4. Traer Precios Oficiales SAP
+      col_sap_p = next(
+          (
+              c
+              for c in df_sap.columns
+              if "sap" in c.lower() or "código" in c.lower()
+          ),
+          df_sap.columns[min(0, len(df_sap.columns) - 1)],
+      )
+      col_desc_p = next(
+          (c for c in df_sap.columns if "descripci" in c.lower()),
+          df_sap.columns[min(1, len(df_sap.columns) - 1)],
+      )
+      col_prec_p = next(
+          (
+              c
+              for c in df_sap.columns
+              if "precio" in c.lower() or "costo" in c.lower()
+          ),
+          df_sap.columns[min(2, len(df_sap.columns) - 1)],
+      )
 
       df_sap_c = df_sap.copy()
       df_sap_c["Clean_SAP"] = (
@@ -1153,15 +1295,23 @@ elif menu == "Auditoría de Almacén (Coccia)":
           .str.replace(r"\.0$", "", regex=True)
       )
       df_sap_c["Descripcion"] = df_sap_c[col_desc_p].fillna("").astype(str)
-      df_sap_c["Precio_Num"] = df_sap_c[col_prec_p].apply(parsear_numero_seguro)
+      df_sap_c["Precio_Num"] = pd.to_numeric(
+          df_sap_c[col_prec_p]
+          .astype(str)
+          .str.replace("$", "")
+          .str.replace(",", ""),
+          errors="coerce",
+      ).fillna(0.0)
 
       df_sap_clean = df_sap_c[
           ["Clean_SAP", "Descripcion", "Precio_Num"]
       ].drop_duplicates(subset=["Clean_SAP"])
+
       df_reporte = pd.merge(
           df_mat_filtrado, df_sap_clean, on="Clean_SAP", how="left"
       )
 
+      # Agrupar por código SAP para sumar las cantidades de distintas actividades
       df_consolidado = df_reporte.groupby(
           ["Clean_SAP", "Descripcion"], as_index=False
       ).agg({"Cantidad_Total_Material": "sum", "Precio_Num": "first"})
@@ -1171,6 +1321,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
           * df_consolidado["Precio_Num"]
       )
 
+      # Formatear tabla para presentación
       df_mostrar = df_consolidado.copy()
       df_mostrar["Cantidad Requerida"] = df_mostrar[
           "Cantidad_Total_Material"
@@ -1203,6 +1354,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
       )
       mostrar_tabla_html_ejecutiva(df_mostrar)
 
+      # Descargar Excel
       buffer = io.BytesIO()
       with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df_mostrar.to_excel(
@@ -1225,4 +1377,4 @@ elif menu == "Auditoría de Almacén (Coccia)":
   else:
     st.error(
         "Faltan archivos base para realizar el cálculo de auditoría de almacén."
-    )
+    )    
