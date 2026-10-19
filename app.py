@@ -43,6 +43,7 @@ st.markdown(
         margin-bottom: 0;
     }
 
+    /* Contenedor con Scroll Superior Único */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
@@ -50,6 +51,7 @@ st.markdown(
         border: 1px solid #d0d7de;
         border-radius: 6px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transform: rotateX(180deg); /* Invierte el contenedor para poner el scroll ARRIBA */
     }
     table.tabla-ejecutiva {
         width: 100%;
@@ -57,6 +59,7 @@ st.markdown(
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         font-size: 13px;
         background-color: #ffffff;
+        transform: rotateX(180deg); /* Vuelve el texto y contenido a su orientación normal */
     }
     table.tabla-ejecutiva thead tr {
         background-color: #0b2240 !important;
@@ -67,6 +70,7 @@ st.markdown(
         padding: 11px 14px !important;
         font-weight: 700 !important;
         color: #ffffff !important;
+        background-color: #0b2240 !important;
         border-right: 1px solid #1a365d;
         white-space: nowrap;
     }
@@ -75,6 +79,7 @@ st.markdown(
         border-bottom: 1px solid #e1e4e8;
         border-right: 1px solid #e1e4e8;
         color: #24292e;
+        white-space: nowrap;
     }
     table.tabla-ejecutiva tr:nth-child(even) {
         background-color: #f8f9fa;
@@ -291,59 +296,17 @@ st.sidebar.caption("EDEESTE - Control Presupuestario y Operativo")
 
 
 def mostrar_tabla_html_ejecutiva(df_mostrar):
-    import uuid
-
-    tabla_id = f"tabla_{uuid.uuid4().hex[:8]}"
     html_str = df_mostrar.to_html(
         index=False, classes="tabla-ejecutiva", escape=False
     )
-    
-    custom_html = f"""
-    <style>
-    .top-scroll-wrapper {{
-        width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        height: 18px;
-        margin-bottom: 5px;
-    }}
-    .top-scroll-div {{
-        height: 18px;
-    }}
-    </style>
-
-    <div class="top-scroll-wrapper" id="top_{tabla_id}">
-        <div class="top-scroll-div" id="top_div_{tabla_id}"></div>
-    </div>
-    
-    <div class="tabla-ejecutiva-container" id="bot_{tabla_id}">
-        {html_str}
-    </div>
-
-    <script>
-    (function() {{
-        const topWrapper = document.getElementById("top_{tabla_id}");
-        const topDiv = document.getElementById("top_div_{tabla_id}");
-        const botWrapper = document.getElementById("bot_{tabla_id}");
-        const table = botWrapper.querySelector("table");
-
-        if (table && topWrapper && botWrapper) {{
-            topDiv.style.width = table.scrollWidth + "px";
-            topWrapper.addEventListener("scroll", function() {{
-                botWrapper.scrollLeft = topWrapper.scrollLeft;
-            }});
-            botWrapper.addEventListener("scroll", function() {{
-                topWrapper.scrollLeft = botWrapper.scrollLeft;
-            }});
-        }}
-    }})();
-    </script>
-    """
-    st.components.v1.html(custom_html, height=350, scrolling=True)
+    st.markdown(
+        f'<div class="tabla-ejecutiva-container">{html_str}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def calcular_materiales_de_df_mo(df_mo_sub):
-    """Función exacta que utiliza el Panel Ejecutivo para calcular materiales reales por proyecto y reportar actividades sin maestro."""
+    """Función exacta que utiliza el Panel Ejecutivo para calcular materiales reales por proyecto."""
     if (
         df_contratistas is None
         or df_contratistas.empty
@@ -352,7 +315,7 @@ def calcular_materiales_de_df_mo(df_mo_sub):
         or df_mo_sub is None
         or df_mo_sub.empty
     ):
-        return pd.DataFrame(), 0.0, []
+        return pd.DataFrame(), 0.0
 
     fuente_mat = df_contratistas.copy()
     col_act_mo = buscar_columna_segura(df_mo_sub, ["actividad", "código"])
@@ -360,7 +323,7 @@ def calcular_materiales_de_df_mo(df_mo_sub):
     col_unds_mo = buscar_columna_segura(df_mo_sub, ["unds", "und", "unidad"])
 
     if not col_act_mo or not col_cant_mo:
-        return pd.DataFrame(), 0.0, []
+        return pd.DataFrame(), 0.0
 
     df_mo_sub = df_mo_sub.copy()
     df_mo_sub["Actividad_Clean"] = (
@@ -394,17 +357,11 @@ def calcular_materiales_de_df_mo(df_mo_sub):
     col_cant_mat = buscar_columna_segura(fuente_mat, ["cantidad", "cant"])
 
     if not col_act_mat or not col_sap_mat or not col_cant_mat:
-        return pd.DataFrame(), 0.0, []
+        return pd.DataFrame(), 0.0
 
     fuente_mat["Actividad_Clean"] = (
         fuente_mat[col_act_mat].fillna("").astype(str).str.strip().str.upper()
     )
-
-    # Detectar actividades en campo que NO existen en el archivo maestro de contratistas
-    actividades_en_campo = set(dict_cant_mo.keys())
-    actividades_en_maestro = set(fuente_mat["Actividad_Clean"].unique())
-    actividades_sin_maestro = sorted(list(actividades_en_campo - actividades_en_maestro))
-
     fuente_mat["Clean_SAP"] = (
         fuente_mat[col_sap_mat]
         .fillna("")
@@ -428,7 +385,7 @@ def calcular_materiales_de_df_mo(df_mo_sub):
     ].copy()
 
     if df_filtrado.empty:
-        return pd.DataFrame(), 0.0, actividades_sin_maestro
+        return pd.DataFrame(), 0.0
 
     df_filtrado["Cant_IDP"] = df_filtrado["Actividad_Clean"].map(dict_cant_mo)
     condicion_especial = (df_filtrado["Actividad_Clean"] == "1VA-MT") & (
@@ -445,7 +402,7 @@ def calcular_materiales_de_df_mo(df_mo_sub):
     col_precio_final = buscar_columna_segura(df_sap, ["precio", "costo"])
 
     if not col_sap_prec or not col_desc_sap or not col_precio_final:
-        return pd.DataFrame(), 0.0, actividades_sin_maestro
+        return pd.DataFrame(), 0.0
 
     df_sap_copy = df_sap.copy()
     df_sap_copy["Clean_SAP"] = (
@@ -478,11 +435,11 @@ def calcular_materiales_de_df_mo(df_mo_sub):
     )
     costo_total = df_resumen_mat["Costo_Material"].sum()
 
-    return df_resumen_mat, costo_total, actividades_sin_maestro
+    return df_resumen_mat, costo_total
 
 
 # =====================================================================
-# MÓDULO 1: PANEL EJECUTIVO POR PROYECTO (INTACTO)
+# MÓDULO 1: PANEL EJECUTIVO POR PROYECTO
 # =====================================================================
 if menu == "Panel Ejecutivo por Proyecto":
     if codigo_seleccionado != "Todos":
@@ -571,12 +528,9 @@ if menu == "Panel Ejecutivo por Proyecto":
                         df_meta_proy.iloc[0][col_presupuesto]
                     )
 
-        df_resumen_mat, costo_materiales_total, act_huerfanas = calcular_materiales_de_df_mo(
+        df_resumen_mat, costo_materiales_total = calcular_materiales_de_df_mo(
             df_mo_proy
         )
-        
-        if act_huerfanas:
-            st.warning(f"🔍 **Auditoría:** Actividades reportadas en campo que NO poseen materiales en el maestro de contratistas: **{', '.join(act_huerfanas)}**")
 
         df_materiales_mostrador = pd.DataFrame()
 
@@ -1055,7 +1009,7 @@ if menu == "Panel Ejecutivo por Proyecto":
 
 
 # =====================================================================
-# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS (INTACTO Y SIN MODIFICACIONES)
+# MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS
 # =====================================================================
 elif menu == "Mapa Interactivo de Proyectos":
     st.subheader(
@@ -1112,7 +1066,7 @@ elif menu == "Mapa Interactivo de Proyectos":
                         for pid in df_mapa["Clean_Proy"].unique():
                             df_sub_p = df_mo_copy[df_mo_copy["Clean_Proy"] == pid]
                             if not df_sub_p.empty:
-                                _, c_mat, _ = calcular_materiales_de_df_mo(df_sub_p)
+                                _, c_mat = calcular_materiales_de_df_mo(df_sub_p)
                                 monto_mat_dict[pid] = c_mat
 
                 df_mapa["Mano_Obra_RD"] = (
@@ -1265,7 +1219,7 @@ elif menu == "Mapa Interactivo de Proyectos":
         st.warning("⚠️ Archivo de Códigos de Proyecto no cargado.")
 
 # =====================================================================
-# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — MATRIZ CRUZADA Y AUDITORÍA
+# MÓDULO 3: AUDITORÍA DE ALMACÉN (COCCIA) — MATRIZ CRUZADA
 # =====================================================================
 elif menu == "Auditoría de Almacén (Coccia)":
     st.subheader(
@@ -1355,7 +1309,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
         )
 
         lista_df_materiales_todos = []
-        todas_actividades_huerfanas = set()
 
         for proj_id in proyectos_de_coccia:
             df_mo_un_proyecto = df_mo_coccia_puro[
@@ -1403,11 +1356,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
                     st.info("No se pudo estructurar el detalle de mano de obra.")
 
                 st.markdown("##### 🛠️ Materiales SAP Correspondientes")
-                df_mat_proj, costo_proj, huerfanas_p = calcular_materiales_de_df_mo(df_mo_un_proyecto)
-
-                if huerfanas_p:
-                    todas_actividades_huerfanas.update(huerfanas_p)
-                    st.warning(f"🔍 **Actividades sin Maestro de Materiales en este proyecto:** {', '.join(huerfanas_p)}")
+                df_mat_proj, costo_proj = calcular_materiales_de_df_mo(df_mo_un_proyecto)
 
                 if not df_mat_proj.empty:
                     df_mat_proj["Clean_Proy"] = proj_id
@@ -1441,9 +1390,6 @@ elif menu == "Auditoría de Almacén (Coccia)":
                     mostrar_tabla_html_ejecutiva(df_mat_display)
                 else:
                     st.info("Este proyecto no generó materiales teóricos asociados.")
-
-        if todas_actividades_huerfanas:
-            st.error(f"⚠️ **Resumen Global de Auditoría:** Se detectaron {len(todas_actividades_huerfanas)} actividades ejecutadas en campo que NO poseen materiales asignados en el archivo 'Actividades contratistas.xlsx': **{', '.join(sorted(list(todas_actividades_huerfanas)))}**")
 
         st.markdown("---")
         st.markdown("### 📊 AUDITORÍA DE ALMACÉN — MATRIZ CRUZADA (CONSOLIDADO COCCIA)")
