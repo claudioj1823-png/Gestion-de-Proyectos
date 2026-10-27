@@ -191,9 +191,8 @@ st.markdown(
 )
 
 # =====================================================================
-# 3. BARRA SUPERIOR Y BANNER GERENCIAL (FECHA DINÁMICA)
+# 3. BARRA SUPERIOR Y BANNER GERENCIAL (FECHA DINÁMICA + LOGO DE EDEESTE)
 # =====================================================================
-# Obtener la fecha de hoy del sistema
 now = datetime.now()
 meses_es = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
@@ -201,6 +200,7 @@ meses_es = {
 }
 fecha_actual_str = f"{now.day} de {meses_es[now.month]} de {now.year}"
 
+# 1. Barra superior
 st.markdown(
     f"""
     <div style="display: flex; justify-content: space-between; align-items: center; background: #061224; padding: 10px 20px; border-radius: 8px; border: 1px solid #1e3a8a; margin-bottom: 16px;">
@@ -213,19 +213,37 @@ st.markdown(
             <div style="background: #2563eb; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white;">👤</div>
         </div>
     </div>
-    
-    <div style="background: linear-gradient(90deg, #0e2a47 0%, #173d66 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #2563eb; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
-        <div style="display: flex; align-items: center; gap: 14px;">
-            <span style="font-size: 26px;">⚡</span>
-            <div>
-                <h2 style="margin:0; color: #ffffff; font-size: 21px; font-weight: 700;">EDEESTE • Control de Proyecto (Panel Gerencial)</h2>
-                <p style="margin:4px 0 0 0; color: #93c5fd; font-size: 13.5px;">Seguimiento financiero, operativo y de ejecución de proyectos</p>
-            </div>
-        </div>
-    </div>
 """,
     unsafe_allow_html=True,
 )
+
+# 2. Banner principal con Logo de EDEESTE
+col_logo, col_titulo = st.columns([1, 4])
+
+with col_logo:
+    if os.path.exists("logo_edeeste.png"):
+        st.image("logo_edeeste.png", use_column_width=True)
+    else:
+        st.markdown(
+            "<div style='text-align: center; font-size: 50px; padding-top: 10px;'>⚡</div>",
+            unsafe_allow_html=True,
+        )
+
+with col_titulo:
+    st.markdown(
+        """
+        <div style="background: linear-gradient(90deg, #0e2a47 0%, #173d66 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #2563eb; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <span style="font-size: 26px;">⚡</span>
+                <div>
+                    <h2 style="margin:0; color: #ffffff; font-size: 21px; font-weight: 700;">EDEESTE • Control de Proyecto (Panel Gerencial)</h2>
+                    <p style="margin:4px 0 0 0; color: #93c5fd; font-size: 13.5px;">Seguimiento financiero, operativo y de ejecución de proyectos</p>
+                </div>
+            </div>
+        </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
 # =====================================================================
 # 4. FUNCIONES AUXILIARES Y DE CARGA
