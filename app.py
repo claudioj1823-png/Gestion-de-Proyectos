@@ -7,207 +7,194 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 
+# =====================================================================
+# 1. CONFIGURACIÓN DE PÁGINA
+# =====================================================================
 st.set_page_config(
     page_title="Control de Proyecto - EDEESTE", page_icon="⚡", layout="wide"
 )
 
-# Estilos CSS globales y semáforos corporativos
+# =====================================================================
+# 2. INYECCIÓN DE ESTILOS CSS — THEME AZUL EJECUTIVO EDEESTE (ALTO CONTRASTE)
+# =====================================================================
 st.markdown(
     """
     <style>
-    /* PALETA CORPORATIVA EDEESTE: azul marino + azul eléctrico + tarjetas claras */
-    :root {
-        --edeeste-bg: #18365b;
-        --edeeste-sidebar: #102746;
-        --edeeste-card: #ffffff;
-        --edeeste-border: #31547f;
-        --edeeste-blue: #2563eb;
-        --edeeste-text: #f4f7fb;
-        --edeeste-muted: #a8bad4;
+    /* 1. Fondo principal de la app (Azul marino corporativo profundo) */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
+        background-color: #0a192f !important;
+        color: #f8fafc !important;
     }
-
-    /* Fondo principal y contenedores base de Streamlit */
-    .stApp,
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"],
-    .main {
-        background-color: var(--edeeste-bg) !important;
-        color: var(--edeeste-text) !important;
-    }
+    
     [data-testid="stHeader"] {
-        background-color: rgba(24, 54, 91, 0.96) !important;
-    }
-    [data-testid="stSidebar"],
-    [data-testid="stSidebar"] > div:first-child {
-        background-color: var(--edeeste-sidebar) !important;
-        border-right: 1px solid var(--edeeste-border) !important;
+        background-color: rgba(10, 25, 47, 0.95) !important;
     }
 
-    /* Tipografía legible sobre el fondo oscuro */
-    .stApp p, .stApp li, .stApp label,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] span {
-        color: var(--edeeste-text);
+    /* 2. Barra lateral (Sidebar) */
+    [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
+        background-color: #06101e !important;
+        border-right: 1px solid #1e3a8a !important;
     }
+    [data-testid="stSidebar"] * {
+        color: #e2e8f0 !important;
+    }
+
+    /* 3. Títulos y encabezados */
     h1, h2, h3, h4, h5, h6 {
-        color: #f4f7fb !important;
-    }
-    [data-testid="stSidebar"] hr {
-        border-color: var(--edeeste-border) !important;
+        color: #ffffff !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* Métricas conservan tarjetas blancas como en el diseño de referencia */
+    /* 4. TARJETAS DE MÉTRICAS (KPIs): Tarjetas blancas nítidas con texto oscuro forzado */
     [data-testid="stMetric"] {
         background-color: #ffffff !important;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #d9e2ef !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+        padding: 16px 20px !important;
+        border-radius: 10px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
-    /* Fuerza texto oscuro dentro de las tarjetas blancas; evita heredar blanco del tema */
-    [data-testid="stMetric"],
-    [data-testid="stMetric"] div,
-    [data-testid="stMetric"] p,
-    [data-testid="stMetric"] label,
-    [data-testid="stMetric"] span,
+    
+    /* Etiqueta superior de la métrica (Gris oscuro metálico siempre visible) */
     [data-testid="stMetric"] [data-testid="stMetricLabel"],
     [data-testid="stMetric"] [data-testid="stMetricLabel"] *,
-    [data-testid="stMetric"] [data-testid="stMetricValue"],
-    [data-testid="stMetric"] [data-testid="stMetricValue"] * {
-        color: #334155 !important;
-    }
-    [data-testid="stMetric"] [data-testid="stMetricLabel"],
-    [data-testid="stMetric"] [data-testid="stMetricLabel"] p,
     [data-testid="stMetric"] label,
-    [data-testid="stMetric"] label p,
-    [data-testid="stMetric"] label span {
-        color: #334155 !important;
+    [data-testid="stMetric"] label * {
+        color: #475569 !important;
+        font-size: 13px !important;
         font-weight: 700 !important;
-        font-size: 14px !important;
+        text-transform: uppercase;
     }
+
+    /* Valor numérico de la métrica (Azul corporativo brillante) */
     [data-testid="stMetric"] [data-testid="stMetricValue"],
     [data-testid="stMetric"] [data-testid="stMetricValue"] * {
-        color: #0756a8 !important;
-        font-size: 24px !important;
+        color: #0284c7 !important;
+        font-size: 25px !important;
         font-weight: 800 !important;
     }
+
+    /* Delta o indicador de variación */
     [data-testid="stMetric"] [data-testid="stMetricDelta"],
     [data-testid="stMetric"] [data-testid="stMetricDelta"] * {
-        color: #334155 !important;
         font-weight: 700 !important;
     }
 
-    /* Controles de filtros: contraste con el menú azul oscuro */
+    /* 5. Controles de filtros en Sidebar */
     [data-testid="stSidebar"] [data-baseweb="select"] > div,
     [data-testid="stSidebar"] [data-baseweb="input"] > div {
-        background-color: #0b2247 !important;
-        border-color: #25466f !important;
+        background-color: #0f2744 !important;
+        border-color: #1e40af !important;
     }
     [data-testid="stSidebar"] [data-baseweb="select"] *,
     [data-testid="stSidebar"] [data-baseweb="input"] input {
         color: #ffffff !important;
     }
-    [data-testid="stSidebar"] [role="radiogroup"] label {
-        color: #e7eef9 !important;
-    }
+
+    /* 6. Botones estilo ejecutivo */
     .stButton > button {
-        border-radius: 8px;
-        border-color: #2563eb;
-        font-weight: 600;
+        background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 8px 18px !important;
+        transition: all 0.2s ease;
     }
-    .stButton > button[kind="secondary"] {
-        background-color: #10294b;
-        color: #ffffff;
+    .stButton > button:hover {
+        background: linear-gradient(90deg, #0369a1 0%, #075985 100%) !important;
+        box-shadow: 0 0 10px rgba(2, 132, 199, 0.4) !important;
     }
 
-    /* Resumen y tablas mantienen fondos claros para asegurar legibilidad */
+    /* 7. Resumen Gerencial */
     .resumen-gerencial-box {
-        background: #f0f5ff;
-        color: #243247;
-        border-left: 5px solid #2563eb;
-        padding: 18px 22px;
-        border-radius: 8px;
-        box-shadow: 0 3px 14px rgba(0,0,0,0.18);
-        margin-bottom: 20px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-    
-    .resumen-gerencial-box {
-        background: #ffffff;
-        border-left: 5px solid #0d6efd;
-        padding: 18px 22px;
-        border-radius: 6px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        margin-bottom: 20px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: #f8fafc !important;
+        border-left: 5px solid #0284c7 !important;
+        padding: 18px 22px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        margin-bottom: 20px !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     .resumen-gerencial-box h4 {
-        margin-top: 0;
-        color: #0b2240 !important;
-        font-size: 16px;
-        font-weight: 700;
+        margin-top: 0 !important;
+        color: #0f172a !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
     }
     .resumen-gerencial-box p {
-        color: #333333 !important;
-        font-size: 14px;
-        line-height: 1.5;
-        margin-bottom: 0;
+        color: #334155 !important;
+        font-size: 14px !important;
+        line-height: 1.6 !important;
+        margin-bottom: 0 !important;
     }
 
-    /* Contenedor con Scroll Superior Único */
+    /* 8. Tablas ejecutivas con scroll superior */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
         margin-bottom: 15px;
-        border: 1px solid #d0d7de;
+        border: 1px solid #334155;
         border-radius: 6px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        transform: rotateX(180deg); /* Invierte el contenedor para poner el scroll ARRIBA */
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        transform: rotateX(180deg);
     }
     table.tabla-ejecutiva {
         width: 100%;
         border-collapse: collapse;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         font-size: 13px;
         background-color: #ffffff;
-        transform: rotateX(180deg); /* Vuelve el texto y contenido a su orientación normal */
+        transform: rotateX(180deg);
     }
     table.tabla-ejecutiva thead tr {
-        background-color: #0b2240 !important;
+        background-color: #0f172a !important;
         color: #ffffff !important;
         text-align: left;
     }
     table.tabla-ejecutiva th {
         padding: 11px 14px !important;
         font-weight: 700 !important;
-        color: #ffffff !important;
-        background-color: #0b2240 !important;
-        border-right: 1px solid #1a365d;
+        color: #38bdf8 !important;
+        background-color: #0f172a !important;
+        border-right: 1px solid #1e293b;
         white-space: nowrap;
     }
     table.tabla-ejecutiva td {
         padding: 9px 14px !important;
-        border-bottom: 1px solid #e1e4e8;
-        border-right: 1px solid #e1e4e8;
-        color: #24292e;
+        border-bottom: 1px solid #e2e8f0;
+        border-right: 1px solid #e2e8f0;
+        color: #1e293b;
         white-space: nowrap;
     }
     table.tabla-ejecutiva tr:nth-child(even) {
-        background-color: #f8f9fa;
+        background-color: #f8fafc;
     }
     table.tabla-ejecutiva tr:hover {
-        background-color: #f1f3f5;
+        background-color: #f1f5f9;
     }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-st.markdown("## ⚡ EDEESTE • Control de Proyecto (Panel Gerencial)")
-st.markdown("---")
+# Banner Ejecutivo
+st.markdown(
+    """
+    <div style="background: linear-gradient(90deg, #06101e 0%, #0f2744 100%); padding: 18px 24px; border-radius: 10px; border: 1px solid #1e40af; margin-bottom: 20px;">
+        <h3 style="margin:0; color: #ffffff; display: flex; align-items: center; gap: 10px;">
+            ⚡ EDEESTE • Control de Proyecto (Panel Gerencial)
+        </h3>
+        <p style="margin:4px 0 0 0; color: #94a3b8; font-size: 13px;">
+            Seguimiento financiero, operativo y de ejecución de proyectos
+        </p>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
 
-
+# =====================================================================
+# 3. FUNCIONES AUXILIARES Y DE CARGA
+# =====================================================================
 def limpiar_nombre_columnas(df):
     if df is not None and not df.empty:
         df = df.copy()
@@ -339,22 +326,14 @@ if df_familia is not None and not df_familia.empty:
             if act_raw and fam_raw and fam_raw != "nan":
                 dict_familia[act_raw] = fam_raw
 
+# =====================================================================
+# 4. FILTROS Y SIDEBAR
+# =====================================================================
 st.sidebar.markdown("### 🎛️ FILTROS EJECUTIVOS")
 anos_disponibles = ["Todos"]
 meses_disponibles = [
-    "Todos",
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
+    "Todos", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ]
 
 if df_mo is not None and not df_mo.empty:
@@ -418,7 +397,6 @@ def mostrar_tabla_html_ejecutiva(df_mostrar):
 
 
 def calcular_materiales_de_df_mo(df_mo_sub):
-    """Función exacta que utiliza el Panel Ejecutivo para calcular materiales reales por proyecto."""
     if (
         df_contratistas is None
         or df_contratistas.empty
@@ -577,8 +555,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                     )
 
         st.markdown(
-            f"<h4 style='color: #212529; margin-bottom: 15px;'>📌 PROYECTO: <b"
-            f" style='color: #0d6efd;'>{nombre_proyecto_str}</b></h4>",
+            f"<h4 style='color: #ffffff; margin-bottom: 15px;'>📌 PROYECTO: <b"
+            f" style='color: #38bdf8;'>{nombre_proyecto_str}</b></h4>",
             unsafe_allow_html=True,
         )
 
@@ -604,18 +582,9 @@ if menu == "Panel Ejecutivo por Proyecto":
                         ]
                     if mes_sel != "Todos":
                         meses_dict = {
-                            "Enero": 1,
-                            "Febrero": 2,
-                            "Marzo": 3,
-                            "Abril": 4,
-                            "Mayo": 5,
-                            "Junio": 6,
-                            "Julio": 7,
-                            "Agosto": 8,
-                            "Septiembre": 9,
-                            "Octubre": 10,
-                            "Noviembre": 11,
-                            "Diciembre": 12,
+                            "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+                            "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+                            "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12,
                         }
                         df_mo_proy = df_mo_proy[
                             df_mo_proy["Fecha_Parsed"].dt.month
@@ -800,10 +769,10 @@ if menu == "Panel Ejecutivo por Proyecto":
             else 0
         )
 
-        # NUEVO: control financiero complementario, sin alterar los cálculos existentes.
         presupuesto_disponible = presupuesto_plan - total_ejecutado
         porcentaje_consumido = porcentaje_ejecutado
 
+        # Métricas principales (Tarjetas Blancas con Texto Oscuro)
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
         c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
@@ -813,7 +782,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
-        # Control adicional de presupuesto disponible y consumo financiero.
+        st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("### 💰 Control de Presupuesto Disponible")
         c6, c7, c8 = st.columns(3)
 
@@ -944,10 +913,10 @@ if menu == "Panel Ejecutivo por Proyecto":
         )
 
         mapa_colores_ejecutivo = {
-            "Mano de Obra": "#1b365d",
-            "Materiales Instalados": "#2b5c8f",
+            "Mano de Obra": "#0284c7",
+            "Materiales Instalados": "#0284c7",
             "Monto Invertido": "#d97706",
-            "Presupuesto Plan.": "#4b5563",
+            "Presupuesto Plan.": "#64748b",
         }
 
         fig_bar = px.bar(
@@ -964,6 +933,9 @@ if menu == "Panel Ejecutivo por Proyecto":
             showlegend=True,
             xaxis_title="",
             template="plotly_white",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(255,255,255,0.02)",
+            font=dict(color="#f8fafc"),
             margin=dict(l=20, r=20, t=40, b=20),
             height=400,
         )
@@ -999,7 +971,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                             x=df_normal["Acción"],
                             y=df_normal["Planificado"],
                             name="Planificado",
-                            marker_color="#1b365d",
+                            marker_color="#1e3a8a",
                             text=df_normal["Text_Plan"],
                             textposition="auto",
                         ),
@@ -1010,7 +982,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                             x=df_normal["Acción"],
                             y=df_normal["Ejecutado"],
                             name="Ejecutado",
-                            marker_color="#2b5c8f",
+                            marker_color="#0284c7",
                             text=df_normal["Text_Ejec"],
                             textposition="auto",
                         ),
@@ -1024,7 +996,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                             x=df_cond["Acción"],
                             y=df_cond["Planificado"],
                             name="Planificado (Metros)",
-                            marker_color="#1b365d",
+                            marker_color="#1e3a8a",
                             text=df_cond["Text_Plan"],
                             textposition="auto",
                         ),
@@ -1035,7 +1007,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                             x=df_cond["Acción"],
                             y=df_cond["Ejecutado"],
                             name="Ejecutado (Metros)",
-                            marker_color="#2b5c8f",
+                            marker_color="#0284c7",
                             text=df_cond["Text_Ejec"],
                             textposition="auto",
                         ),
@@ -1061,6 +1033,9 @@ if menu == "Panel Ejecutivo por Proyecto":
                     barmode="group",
                     xaxis_title="",
                     template="plotly_white",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(255,255,255,0.02)",
+                    font=dict(color="#f8fafc"),
                     height=420,
                     legend=dict(
                         orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
@@ -1082,7 +1057,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                             labels=["% Avance", "% Faltante"],
                             values=[prom_avance_gen, faltante_gen],
                             hole=0.65,
-                            marker=dict(colors=["#1b365d", "#ef4444"]),
+                            marker=dict(colors=["#0284c7", "#ef4444"]),
                             textinfo="none",
                         )
                     ]
@@ -1092,6 +1067,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                         text="<b>Avance Global del Proyecto</b>",
                         x=0.5,
                         xanchor="center",
+                        font=dict(color="#f8fafc")
                     ),
                     annotations=[
                         dict(
@@ -1099,6 +1075,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                             x=0.5,
                             y=0.5,
                             font_size=24,
+                            font_color="#ffffff",
                             showarrow=False,
                         )
                     ],
@@ -1109,10 +1086,13 @@ if menu == "Panel Ejecutivo por Proyecto":
                         y=-0.2,
                         xanchor="center",
                         x=0.5,
+                        font=dict(color="#f8fafc")
                     ),
                     height=420,
                     margin=dict(l=10, r=10, t=50, b=10),
                     template="plotly_white",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
                 )
                 st.plotly_chart(fig_donut, use_container_width=True)
 
@@ -1162,7 +1142,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                 st.info("No se encontraron materiales vinculados para este proyecto.")
     else:
         st.info("👈 Por favor seleccione un Código de Proyecto en el menú lateral.")
-
 
 # =====================================================================
 # MÓDULO 2: MAPA INTERACTIVO DE PROYECTOS
@@ -1298,7 +1277,7 @@ elif menu == "Mapa Interactivo de Proyectos":
                             lat=df_mapa["lat"],
                             lon=df_mapa["lon"],
                             mode="markers",
-                            marker=dict(size=16, color="#0d6efd", opacity=0.9),
+                            marker=dict(size=16, color="#0284c7", opacity=0.9),
                             hoverinfo="text",
                             text=df_mapa["Hover_Txt"],
                         )
@@ -1415,18 +1394,9 @@ elif menu == "Auditoría de Almacén (Coccia)":
                 ]
             if mes_sel != "Todos":
                 meses_dict = {
-                    "Enero": 1,
-                    "Febrero": 2,
-                    "Marzo": 3,
-                    "Abril": 4,
-                    "Mayo": 5,
-                    "Junio": 6,
-                    "Julio": 7,
-                    "Agosto": 8,
-                    "Septiembre": 9,
-                    "Octubre": 10,
-                    "Noviembre": 11,
-                    "Diciembre": 12,
+                    "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+                    "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+                    "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12,
                 }
                 df_mo_coccia_puro = df_mo_coccia_puro[
                     df_mo_coccia_puro["Fecha_Parsed"].dt.month
@@ -1552,7 +1522,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
 
         if len(lista_df_materiales_todos) > 0:
             df_todos_unidos = pd.concat(lista_df_materiales_todos, ignore_index=True)
-            
+
             pivot_matriz = df_todos_unidos.pivot_table(
                 index=['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial'],
                 columns='Clean_Proy',
@@ -1563,7 +1533,7 @@ elif menu == "Auditoría de Almacén (Coccia)":
 
             pivot_matriz.columns.name = None
             cols_proyectos = [c for c in pivot_matriz.columns if c not in ['Clean_SAP', 'Descripcion_Oficial', 'Precio_Oficial']]
-            
+
             pivot_matriz['Cantidad Total Global'] = pivot_matriz[cols_proyectos].sum(axis=1)
             pivot_matriz['Costo Total Global'] = pivot_matriz['Cantidad Total Global'] * pivot_matriz['Precio_Oficial']
 
