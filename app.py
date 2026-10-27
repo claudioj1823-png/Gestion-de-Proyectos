@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — CORRECCIÓN TOTAL DE SIDEBAR Y CONTRASTE
+# 2. INYECCIÓN DE ESTILOS CSS — CORRECCIÓN DEFINITIVA DE SELECTORES SIDEBAR
 # =====================================================================
 st.markdown(
     """
@@ -36,7 +36,7 @@ st.markdown(
         border-right: 1px solid #1e3a8a !important;
     }
     
-    /* Forzar que CUALQUIER texto, etiqueta y título en el sidebar sea blanco */
+    /* Textos, etiquetas y títulos en el sidebar */
     [data-testid="stSidebar"] *, 
     [data-testid="stSidebar"] label, 
     [data-testid="stSidebar"] span, 
@@ -102,17 +102,18 @@ st.markdown(
         color: #78350f !important;
     }
 
-    /* 6. Selectores y campos desplegables (Dropdowns de Año, Mes, Proyecto) */
-    [data-testid="stSidebar"] [data-baseweb="select"] > div {
+    /* 6. CORRECCIÓN ABSOLUTA PARA LOS SELECTORES (AÑO, MES, PROYECTO) */
+    [data-testid="stSidebar"] div[data-baseweb="select"] > div {
         background-color: #0e2a47 !important;
-        border-color: #2563eb !important;
-        color: #ffffff !important;
-    }
-    [data-testid="stSidebar"] [data-baseweb="select"] span {
+        border: 1px solid #2563eb !important;
         color: #ffffff !important;
     }
     
-    /* Corregir elementos seleccionados dentro del dropdown */
+    [data-testid="stSidebar"] div[data-baseweb="select"] span {
+        color: #ffffff !important;
+    }
+
+    /* Opciones desplegables del menú */
     div[data-baseweb="popover"] *, div[data-baseweb="menu"] * {
         background-color: #0e2a47 !important;
         color: #ffffff !important;
