@@ -17,10 +17,10 @@ st.markdown(
     <style>
     /* PALETA CORPORATIVA EDEESTE: azul marino + azul eléctrico + tarjetas claras */
     :root {
-        --edeeste-bg: #061225;
-        --edeeste-sidebar: #081a36;
+        --edeeste-bg: #18365b;
+        --edeeste-sidebar: #102746;
         --edeeste-card: #ffffff;
-        --edeeste-border: #18345c;
+        --edeeste-border: #31547f;
         --edeeste-blue: #2563eb;
         --edeeste-text: #f4f7fb;
         --edeeste-muted: #a8bad4;
@@ -35,7 +35,7 @@ st.markdown(
         color: var(--edeeste-text) !important;
     }
     [data-testid="stHeader"] {
-        background-color: rgba(6, 18, 37, 0.96) !important;
+        background-color: rgba(24, 54, 91, 0.96) !important;
     }
     [data-testid="stSidebar"],
     [data-testid="stSidebar"] > div:first-child {
@@ -59,25 +59,43 @@ st.markdown(
 
     /* Métricas conservan tarjetas blancas como en el diseño de referencia */
     [data-testid="stMetric"] {
-        background-color: var(--edeeste-card) !important;
+        background-color: #ffffff !important;
         padding: 15px;
         border-radius: 10px;
         border: 1px solid #d9e2ef !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
     }
+    /* Fuerza texto oscuro dentro de las tarjetas blancas; evita heredar blanco del tema */
+    [data-testid="stMetric"],
+    [data-testid="stMetric"] div,
+    [data-testid="stMetric"] p,
     [data-testid="stMetric"] label,
-    [data-testid="stMetric"] [data-testid="stMetricLabel"] {
-        color: #64748b !important;
-        font-weight: 600;
-        font-size: 14px;
+    [data-testid="stMetric"] span,
+    [data-testid="stMetric"] [data-testid="stMetricLabel"],
+    [data-testid="stMetric"] [data-testid="stMetricLabel"] *,
+    [data-testid="stMetric"] [data-testid="stMetricValue"],
+    [data-testid="stMetric"] [data-testid="stMetricValue"] * {
+        color: #334155 !important;
     }
-    [data-testid="stMetric"] [data-testid="stMetricValue"] {
-        color: #005ecb !important;
-        font-size: 24px;
-        font-weight: 800;
+    [data-testid="stMetric"] [data-testid="stMetricLabel"],
+    [data-testid="stMetric"] [data-testid="stMetricLabel"] p,
+    [data-testid="stMetric"] label,
+    [data-testid="stMetric"] label p,
+    [data-testid="stMetric"] label span {
+        color: #334155 !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
     }
-    [data-testid="stMetric"] [data-testid="stMetricDelta"] {
-        font-weight: 600;
+    [data-testid="stMetric"] [data-testid="stMetricValue"],
+    [data-testid="stMetric"] [data-testid="stMetricValue"] * {
+        color: #0756a8 !important;
+        font-size: 24px !important;
+        font-weight: 800 !important;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricDelta"],
+    [data-testid="stMetric"] [data-testid="stMetricDelta"] * {
+        color: #334155 !important;
+        font-weight: 700 !important;
     }
 
     /* Controles de filtros: contraste con el menú azul oscuro */
