@@ -15,11 +15,105 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main { background-color: #f8f9fa; color: #212529; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .stMetric label { color: #6c757d !important; font-weight: 600; font-size: 14px; }
-    .stMetric [data-testid="stMetricValue"] { color: #0d6efd !important; font-size: 24px; font-weight: bold; }
-    h1, h2, h3, h4, h5, h6 { color: #212529 !important; }
+    /* PALETA CORPORATIVA EDEESTE: azul marino + azul eléctrico + tarjetas claras */
+    :root {
+        --edeeste-bg: #061225;
+        --edeeste-sidebar: #081a36;
+        --edeeste-card: #ffffff;
+        --edeeste-border: #18345c;
+        --edeeste-blue: #2563eb;
+        --edeeste-text: #f4f7fb;
+        --edeeste-muted: #a8bad4;
+    }
+
+    /* Fondo principal y contenedores base de Streamlit */
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    .main {
+        background-color: var(--edeeste-bg) !important;
+        color: var(--edeeste-text) !important;
+    }
+    [data-testid="stHeader"] {
+        background-color: rgba(6, 18, 37, 0.96) !important;
+    }
+    [data-testid="stSidebar"],
+    [data-testid="stSidebar"] > div:first-child {
+        background-color: var(--edeeste-sidebar) !important;
+        border-right: 1px solid var(--edeeste-border) !important;
+    }
+
+    /* Tipografía legible sobre el fondo oscuro */
+    .stApp p, .stApp li, .stApp label,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span {
+        color: var(--edeeste-text);
+    }
+    h1, h2, h3, h4, h5, h6 {
+        color: #f4f7fb !important;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: var(--edeeste-border) !important;
+    }
+
+    /* Métricas conservan tarjetas blancas como en el diseño de referencia */
+    [data-testid="stMetric"] {
+        background-color: var(--edeeste-card) !important;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #d9e2ef !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    }
+    [data-testid="stMetric"] label,
+    [data-testid="stMetric"] [data-testid="stMetricLabel"] {
+        color: #64748b !important;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #005ecb !important;
+        font-size: 24px;
+        font-weight: 800;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        font-weight: 600;
+    }
+
+    /* Controles de filtros: contraste con el menú azul oscuro */
+    [data-testid="stSidebar"] [data-baseweb="select"] > div,
+    [data-testid="stSidebar"] [data-baseweb="input"] > div {
+        background-color: #0b2247 !important;
+        border-color: #25466f !important;
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] *,
+    [data-testid="stSidebar"] [data-baseweb="input"] input {
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] [role="radiogroup"] label {
+        color: #e7eef9 !important;
+    }
+    .stButton > button {
+        border-radius: 8px;
+        border-color: #2563eb;
+        font-weight: 600;
+    }
+    .stButton > button[kind="secondary"] {
+        background-color: #10294b;
+        color: #ffffff;
+    }
+
+    /* Resumen y tablas mantienen fondos claros para asegurar legibilidad */
+    .resumen-gerencial-box {
+        background: #f0f5ff;
+        color: #243247;
+        border-left: 5px solid #2563eb;
+        padding: 18px 22px;
+        border-radius: 8px;
+        box-shadow: 0 3px 14px rgba(0,0,0,0.18);
+        margin-bottom: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
     
     .resumen-gerencial-box {
         background: #ffffff;
@@ -37,7 +131,7 @@ st.markdown(
         font-weight: 700;
     }
     .resumen-gerencial-box p {
-        color: #333333;
+        color: #333333 !important;
         font-size: 14px;
         line-height: 1.5;
         margin-bottom: 0;
