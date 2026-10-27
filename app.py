@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — CORRECCIÓN DEFINITIVA DE SELECTORES
+# 2. INYECCIÓN DE ESTILOS CSS
 # =====================================================================
 st.markdown(
     """
@@ -36,7 +36,6 @@ st.markdown(
         border-right: 1px solid #1e3a8a !important;
     }
     
-    /* Textos generales del sidebar en blanco */
     [data-testid="stSidebar"] label, 
     [data-testid="stSidebar"] span:not([data-baseweb="tag"] span), 
     [data-testid="stSidebar"] p, 
@@ -101,7 +100,7 @@ st.markdown(
         color: #78350f !important;
     }
 
-    /* 6. CORRECCIÓN ESTRICTA PARA LOS SELECTORES (AÑO, MES, PROYECTO) */
+    /* 6. Selectores en Sidebar */
     [data-testid="stSidebar"] div[data-baseweb="select"] {
         background-color: #0e2a47 !important;
         border-radius: 6px !important;
@@ -113,14 +112,12 @@ st.markdown(
         color: #ffffff !important;
     }
     
-    /* Forzar texto blanco dentro del selector y en las opciones seleccionadas */
     [data-testid="stSidebar"] div[data-baseweb="select"] span,
     [data-testid="stSidebar"] div[data-baseweb="select"] div,
     [data-testid="stSidebar"] div[data-baseweb="select"] input {
         color: #ffffff !important;
     }
 
-    /* Menú desplegable al hacer clic */
     div[data-baseweb="popover"], div[data-baseweb="menu"] {
         background-color: #0e2a47 !important;
     }
@@ -955,6 +952,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(255,255,255,0.02)",
             font=dict(color="#ffffff", size=13),
+            title_font=dict(color="#ffffff", size=16),
             legend=dict(font=dict(color="#ffffff", size=12)),
             margin=dict(l=20, r=20, t=40, b=20),
             height=400,
@@ -1048,8 +1046,12 @@ if menu == "Panel Ejecutivo por Proyecto":
                     secondary_y=True,
                 )
 
+                # TÍTULO Y SUBTÍTULO CON BLANCO BRILLANTE Y ALTO CONTRASTE
                 fig_comb.update_layout(
-                    title=f"Avance - {nombre_proyecto_str}",
+                    title=dict(
+                        text=f"<b>Avance — {nombre_proyecto_str}</b>",
+                        font=dict(color="#ffffff", size=15),
+                    ),
                     barmode="group",
                     xaxis_title="",
                     template="plotly_dark",
