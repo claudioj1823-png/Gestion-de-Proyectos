@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — AZUL CORPORATIVO EXACTO Y ALTO CONTRASTE
+# 2. INYECCIÓN DE ESTILOS CSS — CORRECCIÓN TOTAL DE SIDEBAR Y CONTRASTE
 # =====================================================================
 st.markdown(
     """
@@ -30,16 +30,22 @@ st.markdown(
         background-color: rgba(10, 25, 47, 0.95) !important;
     }
 
-    /* 2. Barra lateral (Sidebar) */
+    /* 2. Barra lateral (Sidebar) y sus textos */
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
         background-color: #061224 !important;
         border-right: 1px solid #1e3a8a !important;
     }
-    [data-testid="stSidebar"] * {
-        color: #e2e8f0 !important;
+    
+    /* Forzar que CUALQUIER texto, etiqueta y título en el sidebar sea blanco */
+    [data-testid="stSidebar"] *, 
+    [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] span, 
+    [data-testid="stSidebar"] p, 
+    [data-testid="stSidebar"] div {
+        color: #ffffff !important;
     }
 
-    /* 3. Títulos y encabezados */
+    /* 3. Títulos y encabezados principales */
     h1, h2, h3, h4, h5, h6 {
         color: #ffffff !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -96,15 +102,23 @@ st.markdown(
         color: #78350f !important;
     }
 
-    /* 6. Controles de filtros en Sidebar */
-    [data-testid="stSidebar"] [data-baseweb="select"] > div,
-    [data-testid="stSidebar"] [data-baseweb="input"] > div {
+    /* 6. Selectores y campos desplegables (Dropdowns de Año, Mes, Proyecto) */
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {
         background-color: #0e2a47 !important;
         border-color: #2563eb !important;
-    }
-    [data-testid="stSidebar"] [data-baseweb="select"] *,
-    [data-testid="stSidebar"] [data-baseweb="input"] input {
         color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] [data-baseweb="select"] span {
+        color: #ffffff !important;
+    }
+    
+    /* Corregir elementos seleccionados dentro del dropdown */
+    div[data-baseweb="popover"] *, div[data-baseweb="menu"] * {
+        background-color: #0e2a47 !important;
+        color: #ffffff !important;
+    }
+    div[data-baseweb="menu"] li:hover {
+        background-color: #1e3a8a !important;
     }
 
     /* 7. Botones ejecutivos */
@@ -843,7 +857,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                     " en $0.00 pendientes de actualización."
                 )
 
-        # Resumen y Alerta con textos oscuros legibles
+        # Resumen y Alerta
         col_res, col_alt = st.columns([1.3, 1])
         with col_res:
             st.markdown(
