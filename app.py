@@ -15,37 +15,37 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — THEME AZUL EJECUTIVO EDEESTE (ALTO CONTRASTE)
+# 2. INYECCIÓN DE ESTILOS CSS — TEMA AZUL CORPORATIVO VIBRANTE EDEESTE
 # =====================================================================
 st.markdown(
     """
     <style>
-    /* 1. Fondo principal de la app (Azul marino corporativo profundo) */
+    /* Fondo principal de la app (Azul corporativo vivo y elegante) */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
-        background-color: #0a192f !important;
+        background-color: #0b2240 !important;
         color: #f8fafc !important;
     }
     
     [data-testid="stHeader"] {
-        background-color: rgba(10, 25, 47, 0.95) !important;
+        background-color: rgba(11, 34, 64, 0.95) !important;
     }
 
-    /* 2. Barra lateral (Sidebar) */
+    /* Barra lateral (Sidebar) */
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
-        background-color: #06101e !important;
+        background-color: #071528 !important;
         border-right: 1px solid #1e3a8a !important;
     }
     [data-testid="stSidebar"] * {
         color: #e2e8f0 !important;
     }
 
-    /* 3. Títulos y encabezados */
+    /* Títulos y encabezados */
     h1, h2, h3, h4, h5, h6 {
         color: #ffffff !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 4. TARJETAS DE MÉTRICAS (KPIs): Tarjetas blancas nítidas con texto oscuro forzado */
+    /* TARJETAS DE MÉTRICAS (KPIs): Tarjetas blancas nítidas con texto oscuro forzado */
     [data-testid="stMetric"] {
         background-color: #ffffff !important;
         padding: 16px 20px !important;
@@ -54,32 +54,29 @@ st.markdown(
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
     
-    /* Etiqueta superior de la métrica (Gris oscuro metálico siempre visible) */
     [data-testid="stMetric"] [data-testid="stMetricLabel"],
     [data-testid="stMetric"] [data-testid="stMetricLabel"] *,
     [data-testid="stMetric"] label,
     [data-testid="stMetric"] label * {
         color: #475569 !important;
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
         text-transform: uppercase;
     }
 
-    /* Valor numérico de la métrica (Azul corporativo brillante) */
     [data-testid="stMetric"] [data-testid="stMetricValue"],
     [data-testid="stMetric"] [data-testid="stMetricValue"] * {
         color: #0284c7 !important;
-        font-size: 25px !important;
+        font-size: 24px !important;
         font-weight: 800 !important;
     }
 
-    /* Delta o indicador de variación */
     [data-testid="stMetric"] [data-testid="stMetricDelta"],
     [data-testid="stMetric"] [data-testid="stMetricDelta"] * {
         font-weight: 700 !important;
     }
 
-    /* 5. Controles de filtros en Sidebar */
+    /* Controles de filtros en Sidebar */
     [data-testid="stSidebar"] [data-baseweb="select"] > div,
     [data-testid="stSidebar"] [data-baseweb="input"] > div {
         background-color: #0f2744 !important;
@@ -90,7 +87,7 @@ st.markdown(
         color: #ffffff !important;
     }
 
-    /* 6. Botones estilo ejecutivo */
+    /* Botones estilo ejecutivo */
     .stButton > button {
         background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%) !important;
         color: #ffffff !important;
@@ -105,30 +102,7 @@ st.markdown(
         box-shadow: 0 0 10px rgba(2, 132, 199, 0.4) !important;
     }
 
-    /* 7. Resumen Gerencial */
-    .resumen-gerencial-box {
-        background: #f8fafc !important;
-        border-left: 5px solid #0284c7 !important;
-        padding: 18px 22px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-        margin-bottom: 20px !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .resumen-gerencial-box h4 {
-        margin-top: 0 !important;
-        color: #0f172a !important;
-        font-size: 16px !important;
-        font-weight: 700 !important;
-    }
-    .resumen-gerencial-box p {
-        color: #334155 !important;
-        font-size: 14px !important;
-        line-height: 1.6 !important;
-        margin-bottom: 0 !important;
-    }
-
-    /* 8. Tablas ejecutivas con scroll superior */
+    /* Tablas ejecutivas con scroll superior */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
@@ -177,23 +151,37 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Banner Ejecutivo
+# =====================================================================
+# 3. BARRA SUPERIOR Y BANNER GERENCIAL (Diseño exacto de referencia)
+# =====================================================================
 st.markdown(
     """
-    <div style="background: linear-gradient(90deg, #06101e 0%, #0f2744 100%); padding: 18px 24px; border-radius: 10px; border: 1px solid #1e40af; margin-bottom: 20px;">
-        <h3 style="margin:0; color: #ffffff; display: flex; align-items: center; gap: 10px;">
-            ⚡ EDEESTE • Control de Proyecto (Panel Gerencial)
-        </h3>
-        <p style="margin:4px 0 0 0; color: #94a3b8; font-size: 13px;">
-            Seguimiento financiero, operativo y de ejecución de proyectos
-        </p>
+    <div style="display: flex; justify-content: space-between; align-items: center; background: #071528; padding: 10px 20px; border-radius: 8px; border: 1px solid #1e3a8a; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 16px;">🏠</span>
+            <span style="color: #ffffff; font-weight: 600; font-size: 14px;">Control de Proyecto - EDEESTE</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px; color: #cbd5e1; font-size: 13px;">
+            <div>📅 22 de Octubre de 2025</div>
+            <div style="background: #1e3a8a; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white;">👤</div>
+        </div>
+    </div>
+    
+    <div style="background: linear-gradient(90deg, #081c3a 0%, #102a52 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #1d4ed8; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <span style="font-size: 26px;">⚡</span>
+            <div>
+                <h2 style="margin:0; color: #ffffff; font-size: 21px; font-weight: 700;">EDEESTE • Control de Proyecto (Panel Gerencial)</h2>
+                <p style="margin:4px 0 0 0; color: #93c5fd; font-size: 13.5px;">Seguimiento financiero, operativo y de ejecución de proyectos</p>
+            </div>
+        </div>
     </div>
 """,
     unsafe_allow_html=True,
 )
 
 # =====================================================================
-# 3. FUNCIONES AUXILIARES Y DE CARGA
+# 4. FUNCIONES AUXILIARES Y DE CARGA
 # =====================================================================
 def limpiar_nombre_columnas(df):
     if df is not None and not df.empty:
@@ -327,7 +315,7 @@ if df_familia is not None and not df_familia.empty:
                 dict_familia[act_raw] = fam_raw
 
 # =====================================================================
-# 4. FILTROS Y SIDEBAR
+# 5. FILTROS Y SIDEBAR
 # =====================================================================
 st.sidebar.markdown("### 🎛️ FILTROS EJECUTIVOS")
 anos_disponibles = ["Todos"]
@@ -774,13 +762,13 @@ if menu == "Panel Ejecutivo por Proyecto":
 
         # Métricas principales (Tarjetas Blancas con Texto Oscuro)
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
-        c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
+        c1.metric("👷 Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
+        c2.metric("📦 Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
         c3.metric(
-            "Monto Invertido en el Proyecto (RD$)", f"RD$ {total_ejecutado:,.2f}"
+            "💼 Monto Invertido en el Proyecto (RD$)", f"RD$ {total_ejecutado:,.2f}"
         )
-        c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
-        c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
+        c4.metric("📄 Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
+        c5.metric("🎯 % Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("### 💰 Control de Presupuesto Disponible")
@@ -797,13 +785,13 @@ if menu == "Panel Ejecutivo por Proyecto":
             color_delta_disponible = "off"
 
         c6.metric(
-            "Presupuesto Disponible (RD$)",
+            "💳 Presupuesto Disponible (RD$)",
             f"RD$ {presupuesto_disponible:,.2f}",
             delta=delta_disponible,
             delta_color=color_delta_disponible,
         )
         c7.metric(
-            "Monto Ejecutado (RD$)",
+            "🧮 Monto Ejecutado (RD$)",
             f"RD$ {total_ejecutado:,.2f}",
         )
         if presupuesto_plan > 0:
@@ -816,7 +804,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             texto_consumo = "Sin presupuesto base"
 
         c8.metric(
-            "Presupuesto Consumido",
+            "📊 Presupuesto Consumido",
             f"{porcentaje_consumido:.1f}%",
             delta=texto_consumo,
             delta_color="inverse" if porcentaje_consumido > 100 else "normal",
@@ -840,56 +828,46 @@ if menu == "Panel Ejecutivo por Proyecto":
                     " en $0.00 pendientes de actualización."
                 )
 
-        st.markdown(
-            f"""
-            <div class="resumen-gerencial-box">
-                <h4>📋 Resumen Ejecutivo y Diagnóstico Gerencial</h4>
-                <p>El proyecto <b>{nombre_proyecto_str}</b> presenta una inversión acumulada de <b>RD$ {total_ejecutado:,.2f}</b>, equivalente al <b>{porcentaje_ejecutado:.1f}%</b> del presupuesto planificado de <b>RD$ {presupuesto_plan:,.2f}</b>. El presupuesto disponible calculado es de <b>RD$ {presupuesto_disponible:,.2f}</b>; el proyecto se encuentra {estado_presupuesto}. 
-                En el ámbito físico, la ejecución de actividades muestra avances consolidados en campo. {alerta_mat_txt}</p>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-        alertas = []
-        if presupuesto_plan > 0 and total_ejecutado > presupuesto_plan:
-            exceso = total_ejecutado - presupuesto_plan
-            alertas.append(
-                f"🚨 **Alerta Financiera (Riesgo Alto):** El monto invertido supera el"
-                f" presupuesto planificado por **RD$ {exceso:,.2f}**"
-                f" ({porcentaje_ejecutado:.1f}%)."
+        # Diseño de Resumen y Desvío lado a lado (Exacto a la referencia)
+        col_res, col_alt = st.columns([1.3, 1])
+        with col_res:
+            st.markdown(
+                f"""
+                <div style="background: #ffffff; border-left: 6px solid #0284c7; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%;">
+                    <h4 style="margin-top: 0; color: #0f172a !important; font-size: 16px; font-weight: 700;">📋 Resumen Ejecutivo y Diagnóstico Gerencial</h4>
+                    <p style="color: #334155 !important; font-size: 13.5px; line-height: 1.6; margin-bottom: 0;">
+                        El proyecto <b>{nombre_proyecto_str}</b> presenta una inversión acumulada de <b>RD$ {total_ejecutado:,.2f}</b>, equivalente al <b>{porcentaje_ejecutado:.1f}%</b> del presupuesto planificado de <b>RD$ {presupuesto_plan:,.2f}</b>. El presupuesto disponible calculado es de <b>RD$ {presupuesto_disponible:,.2f}</b>; el proyecto se encuentra {estado_presupuesto}. 
+                        En el ámbito físico, la ejecución de actividades muestra avances consolidados en campo. {alerta_mat_txt}
+                    </p>
+                </div>
+            """,
+                unsafe_allow_html=True,
             )
 
-        if not df_avance_acciones.empty:
-            actividades_sobre = df_avance_acciones[
-                df_avance_acciones["Num_Avance"] > 100
-            ]
-            if not actividades_sobre.empty:
-                nombres_sobr = ", ".join([
-                    f"**{r['Acción']}** ({r['% Avance']})"
-                    for _, r in actividades_sobre.iterrows()
-                ])
-                alertas.append(
-                    f"⚠️ **Desvío Físico (Riesgo Moderado):** Actividades con"
-                    f" sobreejecución mayor al 100%: {nombres_sobr}."
-                )
-
-        if not df_resumen_mat.empty:
-            mat_sin_precio = df_resumen_mat[df_resumen_mat["Precio_Oficial"] == 0]
-            if not mat_sin_precio.empty:
-                detalles_mat = [
-                    f"**[{row['Clean_SAP']}] {row['Descripcion_Oficial']}**"
-                    for _, row in mat_sin_precio.iterrows()
+        with col_alt:
+            dev_bullets = "<li>No se detectan desvíos críticos significativos.</li>"
+            if not df_avance_acciones.empty:
+                actividades_sobre = df_avance_acciones[
+                    df_avance_acciones["Num_Avance"] > 100
                 ]
-                alertas.append(
-                    f"🔍 **Auditoría de Materiales (Atención Requerida):** Precios SAP"
-                    f" en $0.00 para: {', '.join(detalles_mat)}."
-                )
+                if not actividades_sobre.empty:
+                    dev_bullets = "".join([
+                        f"<li><b>{r['Acción']}</b> ({r['% Avance']})</li>"
+                        for _, r in actividades_sobre.iterrows()
+                    ])
 
-        if alertas:
-            with st.container():
-                for alt in alertas:
-                    st.warning(alt)
+            st.markdown(
+                f"""
+                <div style="background: #fef3c7; border-left: 6px solid #f59e0b; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%;">
+                    <h4 style="margin-top: 0; color: #b45309 !important; font-size: 16px; font-weight: 700;">⚠️ Desvío Físico (Riesgo Moderado)</h4>
+                    <p style="color: #78350f !important; font-size: 13.5px; margin-bottom: 8px;">Actividades con sobre ejecución mayor al 100%:</p>
+                    <ul style="color: #78350f !important; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.5;">
+                        {dev_bullets}
+                    </ul>
+                </div>
+            """,
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
         st.markdown("### 📊 Desglose Financiero y Operativo")
@@ -1578,3 +1556,39 @@ elif menu == "Auditoría de Almacén (Coccia)":
             st.warning("No hay materiales consolidados para mostrar.")
     else:
         st.error("Faltan archivos base para realizar la auditoría.")
+
+# =====================================================================
+# 6. MÓDULOS INFERIORES Y FOOTER (Estética de referencia)
+# =====================================================================
+st.markdown("<br><hr>", unsafe_allow_html=True)
+col_b1, col_b2, col_b3 = st.columns([1, 1, 1.2])
+
+with col_b1:
+    st.markdown("""
+        <div style="background: #ffffff; padding: 18px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            <div style="font-size: 20px; margin-bottom: 6px;">🗺️</div>
+            <h4 style="margin: 0 0 6px 0; color: #0f172a !important; font-size: 15px;">Mapa Interactivo de Proyectos</h4>
+            <p style="margin: 0; color: #64748b !important; font-size: 12px;">Visualiza la ubicación y estado de los proyectos en tiempo real. &rarr;</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col_b2:
+    st.markdown("""
+        <div style="background: #ffffff; padding: 18px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            <div style="font-size: 20px; margin-bottom: 6px;">📦</div>
+            <h4 style="margin: 0 0 6px 0; color: #0f172a !important; font-size: 15px;">Auditoría de Almacén (Coccia)</h4>
+            <p style="margin: 0; color: #64748b !important; font-size: 12px;">Control de inventario y movimientos de materiales. &rarr;</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col_b3:
+    st.markdown("""
+        <div style="background: linear-gradient(90deg, #091e3e 0%, #102a52 100%); padding: 18px; border-radius: 8px; border: 1px solid #1d4ed8; color: #ffffff; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <div>
+                <div style="font-size: 18px; margin-bottom: 4px;">📊</div>
+                <div style="font-weight: 700; font-size: 14px;">Comprometidos con</div>
+                <div style="font-size: 12px; color: #93c5fd;">un servicio eléctrico más eficiente</div>
+            </div>
+            <div style="font-size: 24px; opacity: 0.8;">⚡</div>
+        </div>
+    """, unsafe_allow_html=True)
