@@ -15,25 +15,25 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — AZUL CORPORATIVO VIVO Y CONTRASTADO
+# 2. INYECCIÓN DE ESTILOS CSS — AZUL CORPORATIVO EXACTO Y ALTO CONTRASTE
 # =====================================================================
 st.markdown(
     """
     <style>
-    /* 1. Fondo principal con el azul corporativo exacto y luminoso */
+    /* 1. Fondo principal con el azul corporativo exacto */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
-        background-color: #0b2d53 !important;
-        color: #f8fafc !important;
+        background-color: #0a192f !important;
+        color: #ffffff !important;
     }
     
     [data-testid="stHeader"] {
-        background-color: rgba(11, 45, 83, 0.95) !important;
+        background-color: rgba(10, 25, 47, 0.95) !important;
     }
 
     /* 2. Barra lateral (Sidebar) */
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
-        background-color: #071c37 !important;
-        border-right: 1px solid #2563eb !important;
+        background-color: #061224 !important;
+        border-right: 1px solid #1e3a8a !important;
     }
     [data-testid="stSidebar"] * {
         color: #e2e8f0 !important;
@@ -45,13 +45,13 @@ st.markdown(
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 4. TARJETAS DE MÉTRICAS (KPIs): Blancas nítidas con texto oscuro */
+    /* 4. TARJETAS DE MÉTRICAS (KPIs): Blancas nítidas con texto oscuro forzado */
     [data-testid="stMetric"] {
         background-color: #ffffff !important;
         padding: 16px 20px !important;
         border-radius: 10px !important;
         border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
     }
     
     [data-testid="stMetric"] [data-testid="stMetricLabel"],
@@ -81,7 +81,7 @@ st.markdown(
         height: 100% !important;
     }
     .resumen-card-fixed * {
-        color: #1e293b !important;
+        color: #0f172a !important;
     }
 
     .alerta-card-fixed {
@@ -96,24 +96,10 @@ st.markdown(
         color: #78350f !important;
     }
 
-    .footer-card-white {
-        background: #ffffff !important;
-        padding: 18px !important;
-        border-radius: 8px !important;
-        border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-    }
-    .footer-card-white * {
-        color: #0f172a !important;
-    }
-    .footer-card-white p {
-        color: #64748b !important;
-    }
-
     /* 6. Controles de filtros en Sidebar */
     [data-testid="stSidebar"] [data-baseweb="select"] > div,
     [data-testid="stSidebar"] [data-baseweb="input"] > div {
-        background-color: #0f345c !important;
+        background-color: #0e2a47 !important;
         border-color: #2563eb !important;
     }
     [data-testid="stSidebar"] [data-baseweb="select"] *,
@@ -166,7 +152,7 @@ st.markdown(
         padding: 9px 14px !important;
         border-bottom: 1px solid #e2e8f0;
         border-right: 1px solid #e2e8f0;
-        color: #1e293b;
+        color: #0f172a !important;
         white-space: nowrap;
     }
     table.tabla-ejecutiva tr:nth-child(even) {
@@ -185,7 +171,7 @@ st.markdown(
 # =====================================================================
 st.markdown(
     """
-    <div style="display: flex; justify-content: space-between; align-items: center; background: #071c37; padding: 10px 20px; border-radius: 8px; border: 1px solid #2563eb; margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; background: #061224; padding: 10px 20px; border-radius: 8px; border: 1px solid #1e3a8a; margin-bottom: 16px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 16px;">🏠</span>
             <span style="color: #ffffff; font-weight: 600; font-size: 14px;">Control de Proyecto - EDEESTE</span>
@@ -196,7 +182,7 @@ st.markdown(
         </div>
     </div>
     
-    <div style="background: linear-gradient(90deg, #0b2d53 0%, #123d70 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #3b82f6; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+    <div style="background: linear-gradient(90deg, #0e2a47 0%, #173d66 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #2563eb; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
         <div style="display: flex; align-items: center; gap: 14px;">
             <span style="font-size: 26px;">⚡</span>
             <div>
@@ -789,7 +775,7 @@ if menu == "Panel Ejecutivo por Proyecto":
         presupuesto_disponible = presupuesto_plan - total_ejecutado
         porcentaje_consumido = porcentaje_ejecutado
 
-        # Métricas principales (Tarjetas Blancas con Texto Oscuro)
+        # Métricas principales
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("👷 Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
         c2.metric("📦 Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
@@ -857,7 +843,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                     " en $0.00 pendientes de actualización."
                 )
 
-        # Diseño de Resumen y Desvío lado a lado con clases seguras
+        # Resumen y Alerta con textos oscuros legibles
         col_res, col_alt = st.columns([1.3, 1])
         with col_res:
             st.markdown(
@@ -923,7 +909,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             "Mano de Obra": "#0284c7",
             "Materiales Instalados": "#0284c7",
             "Monto Invertido": "#d97706",
-            "Presupuesto Plan.": "#64748b",
+            "Presupuesto Plan.": "#94a3b8",
         }
 
         fig_bar = px.bar(
@@ -939,10 +925,11 @@ if menu == "Panel Ejecutivo por Proyecto":
         fig_bar.update_layout(
             showlegend=True,
             xaxis_title="",
-            template="plotly_white",
+            template="plotly_dark",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(255,255,255,0.02)",
-            font=dict(color="#f8fafc"),
+            font=dict(color="#ffffff", size=13),
+            legend=dict(font=dict(color="#ffffff", size=12)),
             margin=dict(l=20, r=20, t=40, b=20),
             height=400,
         )
@@ -1027,8 +1014,8 @@ if menu == "Panel Ejecutivo por Proyecto":
                         y=df_grafico_acc["Num_Avance"],
                         name="% Avance",
                         mode="lines+markers+text",
-                        line=dict(color="#d97706", width=3),
-                        marker=dict(size=8, color="#d97706"),
+                        line=dict(color="#f59e0b", width=3),
+                        marker=dict(size=8, color="#f59e0b"),
                         text=df_grafico_acc["Porc_Texto"],
                         textposition="top center",
                     ),
@@ -1039,13 +1026,14 @@ if menu == "Panel Ejecutivo por Proyecto":
                     title=f"Avance - {nombre_proyecto_str}",
                     barmode="group",
                     xaxis_title="",
-                    template="plotly_white",
+                    template="plotly_dark",
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(255,255,255,0.02)",
-                    font=dict(color="#f8fafc"),
+                    font=dict(color="#ffffff", size=13),
                     height=420,
                     legend=dict(
-                        orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                        orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                        font=dict(color="#ffffff")
                     ),
                 )
                 fig_comb.update_yaxes(title_text="Magnitud Unidades", secondary_y=False)
@@ -1074,7 +1062,7 @@ if menu == "Panel Ejecutivo por Proyecto":
                         text="<b>Avance Global del Proyecto</b>",
                         x=0.5,
                         xanchor="center",
-                        font=dict(color="#f8fafc")
+                        font=dict(color="#ffffff")
                     ),
                     annotations=[
                         dict(
@@ -1093,11 +1081,11 @@ if menu == "Panel Ejecutivo por Proyecto":
                         y=-0.2,
                         xanchor="center",
                         x=0.5,
-                        font=dict(color="#f8fafc")
+                        font=dict(color="#ffffff")
                     ),
                     height=420,
                     margin=dict(l=10, r=10, t=50, b=10),
-                    template="plotly_white",
+                    template="plotly_dark",
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
@@ -1585,39 +1573,3 @@ elif menu == "Auditoría de Almacén (Coccia)":
             st.warning("No hay materiales consolidados para mostrar.")
     else:
         st.error("Faltan archivos base para realizar la auditoría.")
-
-# =====================================================================
-# 6. MÓDULOS INFERIORES Y FOOTER (Estética de referencia)
-# =====================================================================
-st.markdown("<br><hr>", unsafe_allow_html=True)
-col_b1, col_b2, col_b3 = st.columns([1, 1, 1.2])
-
-with col_b1:
-    st.markdown("""
-        <div class="footer-card-white">
-            <div style="font-size: 20px; margin-bottom: 6px;">🗺️</div>
-            <h4 style="margin: 0 0 6px 0; font-size: 15px;">Mapa Interactivo de Proyectos</h4>
-            <p style="margin: 0; font-size: 12px;">Visualiza la ubicación y estado de los proyectos en tiempo real. &rarr;</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_b2:
-    st.markdown("""
-        <div class="footer-card-white">
-            <div style="font-size: 20px; margin-bottom: 6px;">📦</div>
-            <h4 style="margin: 0 0 6px 0; font-size: 15px;">Auditoría de Almacén (Coccia)</h4>
-            <p style="margin: 0; font-size: 12px;">Control de inventario y movimientos de materiales. &rarr;</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_b3:
-    st.markdown("""
-        <div style="background: linear-gradient(90deg, #0b2d53 0%, #123d70 100%); padding: 18px; border-radius: 8px; border: 1px solid #3b82f6; color: #ffffff; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-            <div>
-                <div style="font-size: 18px; margin-bottom: 4px;">📊</div>
-                <div style="font-weight: 700; font-size: 14px; color: #ffffff;">Comprometidos con</div>
-                <div style="font-size: 12px; color: #93c5fd;">un servicio eléctrico más eficiente</div>
-            </div>
-            <div style="font-size: 24px; opacity: 0.8;">⚡</div>
-        </div>
-    """, unsafe_allow_html=True)
