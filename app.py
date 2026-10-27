@@ -191,7 +191,7 @@ st.markdown(
 )
 
 # =====================================================================
-# 3. BARRA SUPERIOR Y BANNER GERENCIAL (FECHA DINÁMICA + LOGO DE EDEESTE)
+# 3. BARRA SUPERIOR Y BANNER GERENCIAL (FECHA DINÁMICA)
 # =====================================================================
 now = datetime.now()
 meses_es = {
@@ -217,33 +217,21 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 2. Banner principal con Logo de EDEESTE
-col_logo, col_titulo = st.columns([1, 4])
-
-with col_logo:
-    if os.path.exists("logo_edeeste.png"):
-        st.image("logo_edeeste.png", use_column_width=True)
-    else:
-        st.markdown(
-            "<div style='text-align: center; font-size: 50px; padding-top: 10px;'>⚡</div>",
-            unsafe_allow_html=True,
-        )
-
-with col_titulo:
-    st.markdown(
-        """
-        <div style="background: linear-gradient(90deg, #0e2a47 0%, #173d66 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #2563eb; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
-            <div style="display: flex; align-items: center; gap: 14px;">
-                <span style="font-size: 26px;">⚡</span>
-                <div>
-                    <h2 style="margin:0; color: #ffffff; font-size: 21px; font-weight: 700;">EDEESTE • Control de Proyecto (Panel Gerencial)</h2>
-                    <p style="margin:4px 0 0 0; color: #93c5fd; font-size: 13.5px;">Seguimiento financiero, operativo y de ejecución de proyectos</p>
-                </div>
+# 2. Banner principal ejecutivo a todo lo ancho
+st.markdown(
+    """
+    <div style="background: linear-gradient(90deg, #0e2a47 0%, #173d66 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #2563eb; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <span style="font-size: 26px;">⚡</span>
+            <div>
+                <h2 style="margin:0; color: #ffffff; font-size: 21px; font-weight: 700;">EDEESTE • Control de Proyecto (Panel Gerencial)</h2>
+                <p style="margin:4px 0 0 0; color: #93c5fd; font-size: 13.5px;">Seguimiento financiero, operativo y de ejecución de proyectos</p>
             </div>
         </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    </div>
+""",
+    unsafe_allow_html=True,
+)
 
 # =====================================================================
 # 4. FUNCIONES AUXILIARES Y DE CARGA
@@ -380,8 +368,11 @@ if df_familia is not None and not df_familia.empty:
                 dict_familia[act_raw] = fam_raw
 
 # =====================================================================
-# 5. FILTROS Y SIDEBAR
+# 5. FILTROS Y SIDEBAR (CON LOGO COMPACTO EN LA ESQUINA SUPERIOR)
 # =====================================================================
+if os.path.exists("logo_edeeste.png"):
+    st.sidebar.image("logo_edeeste.png", use_column_width=True)
+
 st.sidebar.markdown("### 🎛️ FILTROS EJECUTIVOS")
 anos_disponibles = ["Todos"]
 meses_disponibles = [
