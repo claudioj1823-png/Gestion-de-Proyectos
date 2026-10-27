@@ -15,25 +15,25 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — AZUL CORPORATIVO EXACTO Y ALTO CONTRASTE
+# 2. INYECCIÓN DE ESTILOS CSS — AZUL CORPORATIVO VIVO Y CONTRASTADO
 # =====================================================================
 st.markdown(
     """
     <style>
-    /* 1. Fondo principal de la app (Azul corporativo vivo idéntico al de referencia) */
+    /* 1. Fondo principal con el azul corporativo exacto y luminoso */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
-        background-color: #0b2545 !important;
+        background-color: #0b2d53 !important;
         color: #f8fafc !important;
     }
     
     [data-testid="stHeader"] {
-        background-color: rgba(11, 37, 69, 0.95) !important;
+        background-color: rgba(11, 45, 83, 0.95) !important;
     }
 
     /* 2. Barra lateral (Sidebar) */
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
-        background-color: #06182e !important;
-        border-right: 1px solid #1d4ed8 !important;
+        background-color: #071c37 !important;
+        border-right: 1px solid #2563eb !important;
     }
     [data-testid="stSidebar"] * {
         color: #e2e8f0 !important;
@@ -45,7 +45,7 @@ st.markdown(
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* 4. TARJETAS DE MÉTRICAS (KPIs): Tarjetas blancas nítidas con texto oscuro forzado */
+    /* 4. TARJETAS DE MÉTRICAS (KPIs): Blancas nítidas con texto oscuro */
     [data-testid="stMetric"] {
         background-color: #ffffff !important;
         padding: 16px 20px !important;
@@ -71,15 +71,49 @@ st.markdown(
         font-weight: 800 !important;
     }
 
-    [data-testid="stMetric"] [data-testid="stMetricDelta"],
-    [data-testid="stMetric"] [data-testid="stMetricDelta"] * {
-        font-weight: 700 !important;
+    /* 5. Clases personalizadas de alto contraste para Tarjetas y Textos */
+    .resumen-card-fixed {
+        background: #ffffff !important;
+        border-left: 6px solid #0284c7 !important;
+        padding: 20px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        height: 100% !important;
+    }
+    .resumen-card-fixed * {
+        color: #1e293b !important;
     }
 
-    /* 5. Controles de filtros en Sidebar */
+    .alerta-card-fixed {
+        background: #fef3c7 !important;
+        border-left: 6px solid #f59e0b !important;
+        padding: 20px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        height: 100% !important;
+    }
+    .alerta-card-fixed * {
+        color: #78350f !important;
+    }
+
+    .footer-card-white {
+        background: #ffffff !important;
+        padding: 18px !important;
+        border-radius: 8px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+    }
+    .footer-card-white * {
+        color: #0f172a !important;
+    }
+    .footer-card-white p {
+        color: #64748b !important;
+    }
+
+    /* 6. Controles de filtros en Sidebar */
     [data-testid="stSidebar"] [data-baseweb="select"] > div,
     [data-testid="stSidebar"] [data-baseweb="input"] > div {
-        background-color: #0f2d54 !important;
+        background-color: #0f345c !important;
         border-color: #2563eb !important;
     }
     [data-testid="stSidebar"] [data-baseweb="select"] *,
@@ -87,7 +121,7 @@ st.markdown(
         color: #ffffff !important;
     }
 
-    /* 6. Botones estilo ejecutivo */
+    /* 7. Botones ejecutivos */
     .stButton > button {
         background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%) !important;
         color: #ffffff !important;
@@ -95,14 +129,9 @@ st.markdown(
         border-radius: 8px !important;
         font-weight: 600 !important;
         padding: 8px 18px !important;
-        transition: all 0.2s ease;
-    }
-    .stButton > button:hover {
-        background: linear-gradient(90deg, #0369a1 0%, #075985 100%) !important;
-        box-shadow: 0 0 10px rgba(2, 132, 199, 0.4) !important;
     }
 
-    /* 7. Tablas ejecutivas con scroll superior */
+    /* 8. Tablas ejecutivas */
     .tabla-ejecutiva-container {
         width: 100%;
         overflow-x: auto;
@@ -152,22 +181,22 @@ st.markdown(
 )
 
 # =====================================================================
-# 3. BARRA SUPERIOR Y BANNER GERENCIAL (Diseño exacto de referencia)
+# 3. BARRA SUPERIOR Y BANNER GERENCIAL
 # =====================================================================
 st.markdown(
     """
-    <div style="display: flex; justify-content: space-between; align-items: center; background: #06182e; padding: 10px 20px; border-radius: 8px; border: 1px solid #1d4ed8; margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; background: #071c37; padding: 10px 20px; border-radius: 8px; border: 1px solid #2563eb; margin-bottom: 16px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 16px;">🏠</span>
             <span style="color: #ffffff; font-weight: 600; font-size: 14px;">Control de Proyecto - EDEESTE</span>
         </div>
         <div style="display: flex; align-items: center; gap: 20px; color: #cbd5e1; font-size: 13px;">
             <div>📅 22 de Octubre de 2025</div>
-            <div style="background: #1d4ed8; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white;">👤</div>
+            <div style="background: #2563eb; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white;">👤</div>
         </div>
     </div>
     
-    <div style="background: linear-gradient(90deg, #0b2545 0%, #10315c 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #2563eb; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+    <div style="background: linear-gradient(90deg, #0b2d53 0%, #123d70 100%); padding: 20px 26px; border-radius: 10px; border: 1px solid #3b82f6; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
         <div style="display: flex; align-items: center; gap: 14px;">
             <span style="font-size: 26px;">⚡</span>
             <div>
@@ -828,14 +857,14 @@ if menu == "Panel Ejecutivo por Proyecto":
                     " en $0.00 pendientes de actualización."
                 )
 
-        # Diseño de Resumen y Desvío lado a lado (Exacto a la referencia con letras oscuras aseguradas)
+        # Diseño de Resumen y Desvío lado a lado con clases seguras
         col_res, col_alt = st.columns([1.3, 1])
         with col_res:
             st.markdown(
                 f"""
-                <div style="background: #ffffff; border-left: 6px solid #0284c7; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%;">
-                    <h4 style="margin-top: 0; color: #0f172a !important; font-size: 16px; font-weight: 700;">📋 Resumen Ejecutivo y Diagnóstico Gerencial</h4>
-                    <p style="color: #1e293b !important; font-size: 13.5px; line-height: 1.6; margin-bottom: 0;">
+                <div class="resumen-card-fixed">
+                    <h4 style="margin-top: 0; font-size: 16px; font-weight: 700;">📋 Resumen Ejecutivo y Diagnóstico Gerencial</h4>
+                    <p style="font-size: 13.5px; line-height: 1.6; margin-bottom: 0;">
                         El proyecto <b>{nombre_proyecto_str}</b> presenta una inversión acumulada de <b>RD$ {total_ejecutado:,.2f}</b>, equivalente al <b>{porcentaje_ejecutado:.1f}%</b> del presupuesto planificado de <b>RD$ {presupuesto_plan:,.2f}</b>. El presupuesto disponible calculado es de <b>RD$ {presupuesto_disponible:,.2f}</b>; el proyecto se encuentra {estado_presupuesto}. 
                         En el ámbito físico, la ejecución de actividades muestra avances consolidados en campo. {alerta_mat_txt}
                     </p>
@@ -858,10 +887,10 @@ if menu == "Panel Ejecutivo por Proyecto":
 
             st.markdown(
                 f"""
-                <div style="background: #fef3c7; border-left: 6px solid #f59e0b; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); height: 100%;">
-                    <h4 style="margin-top: 0; color: #b45309 !important; font-size: 16px; font-weight: 700;">⚠️ Desvío Físico (Riesgo Moderado)</h4>
-                    <p style="color: #78350f !important; font-size: 13.5px; margin-bottom: 8px; font-weight: 600;">Actividades con sobre ejecución mayor al 100%:</p>
-                    <ul style="color: #78350f !important; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.5; font-weight: 600;">
+                <div class="alerta-card-fixed">
+                    <h4 style="margin-top: 0; font-size: 16px; font-weight: 700;">⚠️ Desvío Físico (Riesgo Moderado)</h4>
+                    <p style="font-size: 13.5px; margin-bottom: 8px; font-weight: 600;">Actividades con sobre ejecución mayor al 100%:</p>
+                    <ul style="font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.5; font-weight: 600;">
                         {dev_bullets}
                     </ul>
                 </div>
@@ -1565,28 +1594,28 @@ col_b1, col_b2, col_b3 = st.columns([1, 1, 1.2])
 
 with col_b1:
     st.markdown("""
-        <div style="background: #ffffff; padding: 18px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <div class="footer-card-white">
             <div style="font-size: 20px; margin-bottom: 6px;">🗺️</div>
-            <h4 style="margin: 0 0 6px 0; color: #0f172a !important; font-size: 15px;">Mapa Interactivo de Proyectos</h4>
-            <p style="margin: 0; color: #64748b !important; font-size: 12px;">Visualiza la ubicación y estado de los proyectos en tiempo real. &rarr;</p>
+            <h4 style="margin: 0 0 6px 0; font-size: 15px;">Mapa Interactivo de Proyectos</h4>
+            <p style="margin: 0; font-size: 12px;">Visualiza la ubicación y estado de los proyectos en tiempo real. &rarr;</p>
         </div>
     """, unsafe_allow_html=True)
 
 with col_b2:
     st.markdown("""
-        <div style="background: #ffffff; padding: 18px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <div class="footer-card-white">
             <div style="font-size: 20px; margin-bottom: 6px;">📦</div>
-            <h4 style="margin: 0 0 6px 0; color: #0f172a !important; font-size: 15px;">Auditoría de Almacén (Coccia)</h4>
-            <p style="margin: 0; color: #64748b !important; font-size: 12px;">Control de inventario y movimientos de materiales. &rarr;</p>
+            <h4 style="margin: 0 0 6px 0; font-size: 15px;">Auditoría de Almacén (Coccia)</h4>
+            <p style="margin: 0; font-size: 12px;">Control de inventario y movimientos de materiales. &rarr;</p>
         </div>
     """, unsafe_allow_html=True)
 
 with col_b3:
     st.markdown("""
-        <div style="background: linear-gradient(90deg, #0b2545 0%, #10315c 100%); padding: 18px; border-radius: 8px; border: 1px solid #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <div style="background: linear-gradient(90deg, #0b2d53 0%, #123d70 100%); padding: 18px; border-radius: 8px; border: 1px solid #3b82f6; color: #ffffff; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
             <div>
                 <div style="font-size: 18px; margin-bottom: 4px;">📊</div>
-                <div style="font-weight: 700; font-size: 14px;">Comprometidos con</div>
+                <div style="font-weight: 700; font-size: 14px; color: #ffffff;">Comprometidos con</div>
                 <div style="font-size: 12px; color: #93c5fd;">un servicio eléctrico más eficiente</div>
             </div>
             <div style="font-size: 24px; opacity: 0.8;">⚡</div>
