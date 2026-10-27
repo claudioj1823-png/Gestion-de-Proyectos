@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. INYECCIÓN DE ESTILOS CSS — CORRECCIÓN DEFINITIVA DE SELECTORES SIDEBAR
+# 2. INYECCIÓN DE ESTILOS CSS — CORRECCIÓN DEFINITIVA DE SELECTORES
 # =====================================================================
 st.markdown(
     """
@@ -30,18 +30,17 @@ st.markdown(
         background-color: rgba(10, 25, 47, 0.95) !important;
     }
 
-    /* 2. Barra lateral (Sidebar) y sus textos */
+    /* 2. Barra lateral (Sidebar) */
     [data-testid="stSidebar"], [data-testid="stSidebar"] > div:first-child {
         background-color: #061224 !important;
         border-right: 1px solid #1e3a8a !important;
     }
     
-    /* Textos, etiquetas y títulos en el sidebar */
-    [data-testid="stSidebar"] *, 
+    /* Textos generales del sidebar en blanco */
     [data-testid="stSidebar"] label, 
-    [data-testid="stSidebar"] span, 
+    [data-testid="stSidebar"] span:not([data-baseweb="tag"] span), 
     [data-testid="stSidebar"] p, 
-    [data-testid="stSidebar"] div {
+    [data-testid="stSidebar"] h3 {
         color: #ffffff !important;
     }
 
@@ -77,7 +76,7 @@ st.markdown(
         font-weight: 800 !important;
     }
 
-    /* 5. Clases personalizadas de alto contraste para Tarjetas y Textos */
+    /* 5. Tarjetas de Resumen y Alertas */
     .resumen-card-fixed {
         background: #ffffff !important;
         border-left: 6px solid #0284c7 !important;
@@ -102,24 +101,36 @@ st.markdown(
         color: #78350f !important;
     }
 
-    /* 6. CORRECCIÓN ABSOLUTA PARA LOS SELECTORES (AÑO, MES, PROYECTO) */
+    /* 6. CORRECCIÓN ESTRICTA PARA LOS SELECTORES (AÑO, MES, PROYECTO) */
+    [data-testid="stSidebar"] div[data-baseweb="select"] {
+        background-color: #0e2a47 !important;
+        border-radius: 6px !important;
+    }
+    
     [data-testid="stSidebar"] div[data-baseweb="select"] > div {
         background-color: #0e2a47 !important;
         border: 1px solid #2563eb !important;
         color: #ffffff !important;
     }
     
-    [data-testid="stSidebar"] div[data-baseweb="select"] span {
+    /* Forzar texto blanco dentro del selector y en las opciones seleccionadas */
+    [data-testid="stSidebar"] div[data-baseweb="select"] span,
+    [data-testid="stSidebar"] div[data-baseweb="select"] div,
+    [data-testid="stSidebar"] div[data-baseweb="select"] input {
         color: #ffffff !important;
     }
 
-    /* Opciones desplegables del menú */
-    div[data-baseweb="popover"] *, div[data-baseweb="menu"] * {
+    /* Menú desplegable al hacer clic */
+    div[data-baseweb="popover"], div[data-baseweb="menu"] {
+        background-color: #0e2a47 !important;
+    }
+    div[data-baseweb="menu"] li {
         background-color: #0e2a47 !important;
         color: #ffffff !important;
     }
     div[data-baseweb="menu"] li:hover {
         background-color: #1e3a8a !important;
+        color: #ffffff !important;
     }
 
     /* 7. Botones ejecutivos */
