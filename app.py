@@ -1,3 +1,4 @@
+from datetime import datetime
 import io
 import os
 import numpy as np
@@ -190,17 +191,25 @@ st.markdown(
 )
 
 # =====================================================================
-# 3. BARRA SUPERIOR Y BANNER GERENCIAL
+# 3. BARRA SUPERIOR Y BANNER GERENCIAL (FECHA DINÁMICA)
 # =====================================================================
+# Obtener la fecha de hoy del sistema
+now = datetime.now()
+meses_es = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
+    7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+}
+fecha_actual_str = f"{now.day} de {meses_es[now.month]} de {now.year}"
+
 st.markdown(
-    """
+    f"""
     <div style="display: flex; justify-content: space-between; align-items: center; background: #061224; padding: 10px 20px; border-radius: 8px; border: 1px solid #1e3a8a; margin-bottom: 16px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 16px;">🏠</span>
             <span style="color: #ffffff; font-weight: 600; font-size: 14px;">Control de Proyecto - EDEESTE</span>
         </div>
         <div style="display: flex; align-items: center; gap: 20px; color: #cbd5e1; font-size: 13px;">
-            <div>📅 22 de Octubre de 2025</div>
+            <div>📅 {fecha_actual_str}</div>
             <div style="background: #2563eb; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: white;">👤</div>
         </div>
     </div>
@@ -1046,7 +1055,6 @@ if menu == "Panel Ejecutivo por Proyecto":
                     secondary_y=True,
                 )
 
-                # TÍTULO Y SUBTÍTULO CON BLANCO BRILLANTE Y ALTO CONTRASTE
                 fig_comb.update_layout(
                     title=dict(
                         text=f"<b>Avance — {nombre_proyecto_str}</b>",
