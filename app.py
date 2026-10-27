@@ -688,6 +688,10 @@ if menu == "Panel Ejecutivo por Proyecto":
             else 0
         )
 
+        # NUEVO: control financiero complementario, sin alterar los cálculos existentes.
+        presupuesto_disponible = presupuesto_plan - total_ejecutado
+        porcentaje_consumido = porcentaje_ejecutado
+
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Mano de Obra (RD$)", f"RD$ {monto_mo:,.2f}")
         c2.metric("Materiales Instalados (RD$)", f"RD$ {costo_materiales_total:,.2f}")
@@ -696,6 +700,46 @@ if menu == "Panel Ejecutivo por Proyecto":
         )
         c4.metric("Presupuesto Plan. (RD$)", f"RD$ {presupuesto_plan:,.2f}")
         c5.metric("% Ejecución Est.", f"{porcentaje_ejecutado:.1f}%")
+
+        # Control adicional de presupuesto disponible y consumo financiero.
+        st.markdown("### 💰 Control de Presupuesto Disponible")
+        c6, c7, c8 = st.columns(3)
+
+        if presupuesto_plan > 0 and presupuesto_disponible >= 0:
+            delta_disponible = "Disponible para ejecutar"
+            color_delta_disponible = "normal"
+        elif presupuesto_plan > 0:
+            delta_disponible = "Presupuesto excedido"
+            color_delta_disponible = "inverse"
+        else:
+            delta_disponible = "No hay presupuesto planificado"
+            color_delta_disponible = "off"
+
+        c6.metric(
+            "Presupuesto Disponible (RD$)",
+            f"RD$ {presupuesto_disponible:,.2f}",
+            delta=delta_disponible,
+            delta_color=color_delta_disponible,
+        )
+        c7.metric(
+            "Monto Ejecutado (RD$)",
+            f"RD$ {total_ejecutado:,.2f}",
+        )
+        if presupuesto_plan > 0:
+            texto_consumo = (
+                f"{100 - porcentaje_consumido:.1f} puntos restantes"
+                if porcentaje_consumido <= 100
+                else f"{porcentaje_consumido - 100:.1f} puntos sobre el presupuesto"
+            )
+        else:
+            texto_consumo = "Sin presupuesto base"
+
+        c8.metric(
+            "Presupuesto Consumido",
+            f"{porcentaje_consumido:.1f}%",
+            delta=texto_consumo,
+            delta_color="inverse" if porcentaje_consumido > 100 else "normal",
+        )
 
         estado_presupuesto = "en orden"
         if presupuesto_plan > 0:
@@ -719,7 +763,7 @@ if menu == "Panel Ejecutivo por Proyecto":
             f"""
             <div class="resumen-gerencial-box">
                 <h4>📋 Resumen Ejecutivo y Diagnóstico Gerencial</h4>
-                <p>El proyecto <b>{nombre_proyecto_str}</b> presenta una inversión acumulada de <b>RD$ {total_ejecutado:,.2f}</b>, alcanzando un <b>{porcentaje_ejecutado:.1f}%</b> del presupuesto planificado (RD$ {presupuesto_plan:,.2f}), encontrándose {estado_presupuesto}. 
+                <p>El proyecto <b>{nombre_proyecto_str}</b> presenta una inversión acumulada de <b>RD$ {total_ejecutado:,.2f}</b>, equivalente al <b>{porcentaje_ejecutado:.1f}%</b> del presupuesto planificado de <b>RD$ {presupuesto_plan:,.2f}</b>. El presupuesto disponible calculado es de <b>RD$ {presupuesto_disponible:,.2f}</b>; el proyecto se encuentra {estado_presupuesto}. 
                 En el ámbito físico, la ejecución de actividades muestra avances consolidados en campo. {alerta_mat_txt}</p>
             </div>
         """,
